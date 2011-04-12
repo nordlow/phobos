@@ -41,6 +41,7 @@ public import std.perf;
 public import std.process;
 public import std.random;
 public import std.regexp;
+public import std.si;
 public import std.signals;
 //public import std.slist;
 public import std.socket;
@@ -54,6 +55,7 @@ public import std.system;
 public import std.traits;
 public import std.typetuple;
 public import std.uni;
+public import std.units;
 public import std.uri;
 public import std.utf;
 public import std.variant;
@@ -113,6 +115,8 @@ version (all)
     std.demangle.demangle("hello");
 
     std.uni.isUniAlpha('A');
+
+    auto d = std.units.pow!2(3 * std.si.metre);
 
     std.file.exists("foo");
 
