@@ -162,7 +162,9 @@ mixin template UnitImpl() {
 
     /// ditto
     auto opBinary(string op : "/", V)(V rhs) if (!(isUnit!V || isQuantity!V)) {
-        return Quantity!(typeof(this), V).fromValue(rhs ^^ -1);
+        // We cannot just do rhs ^^ -1 because integer types cannot be raised
+        // to negative powers.
+        return Quantity!(typeof(this), V).fromValue((rhs ^^ 0) / rhs);
     }
 
     /// ditto
@@ -818,10 +820,12 @@ struct Quantity(Unit, ValueType = double) if (isUnit!Unit) {
 
         /// ditto
         auto opBinaryRight(string op : "/", Lhs)(Lhs rhs) if (isUnit!Lhs) {
+            // We cannot just do value ^^ -1 because integer types cannot be
+            // raised to negative powers.
             return Quantity!(
                 QuotientUnit!(Lhs, Unit).Result,
                 ValueType
-            ).fromValue(value ^^ -1);
+            ).fromValue((value ^^ 0) / value);
         }
 
         /**
@@ -1010,15 +1014,21 @@ unittest {
     static assert(f1 * f2 == 12 * pow!2(foo));
     enum b = 2 * bar;
     static assert(f1 / b == 3 * foo / bar);
+    static assert(foo / 2 == 0 * foo);
+    static assert(foo / (2 * bar) == 0 * foo / bar);
+
     static assert(f1 == 6u * foo);
     static assert(f1 != f2);
     static assert(f1 > f2);
     static assert(!__traits(compiles, f1 != b));
     static assert(!__traits(compiles, f1 < b));
+
     static assert((f1 / b).toString() == "3 bar^(-1) foo");
     static assert((f1 / b).toString(UnitString.symbol) == "3 br^(-1) f");
+
     enum int fromDimless = f1 / foo;
 
+    // Increment/decrement should only work for dimensionless Quantities.
     auto f3 = 1 * foo;
     static assert(!__traits(compiles, ++f3));
     static assert(!__traits(compiles, --f3));
