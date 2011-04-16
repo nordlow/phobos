@@ -1659,20 +1659,20 @@ template PrefixSystem(long systemBase, alias getPrefixes)
  *     Prefix(-3, "milli", "m"),
  *     Prefix(3, "kilo", "k")
  * ]; }) System;
- * alias MakePrefixTemplate!(-3, System).result milli;
- * alias MakePrefixTemplate!(3, System).result kilo;
- * // Use the templates like this: milli!(metre), kilo!(metre), etc.
+ * alias prefixTemplate!(-3, System) milli;
+ * alias prefixTemplate!(3, System) kilo;
+ * // Use the templates like this: milli!metre, kilo!metre, etc.
  * ---
  */
-template MakePrefixTemplate(int exponent, alias System) {
-    template result(alias u) if (isUnitInstance!u) {
-        enum result = PrefixedUnit!(u, exponent, System).init;
+template prefixTemplate(int exponent, alias System) {
+    template prefixTemplate(alias u) if (isUnitInstance!u) {
+        enum prefixTemplate = PrefixedUnit!(u, exponent, System).init;
     }
 }
 
 /**
  * Mixin template for creating prefix functions for all the prefixes in a
- * prefix system. See $(LREF PrefixedUnit) and $(LREF MakePrefixTemplate).
+ * prefix system. See $(LREF PrefixedUnit) and $(LREF prefixTemplate).
  *
  * Example:
  * ---
@@ -1687,8 +1687,8 @@ mixin template DefinePrefixSystem(alias System) {
     mixin({
         string code;
         foreach (p; System.prefixes) {
-            code ~= "alias MakePrefixTemplate!(" ~ to!string(p.exponent) ~
-                ", System).result " ~ p.name ~ ";";
+            code ~= "alias prefixTemplate!(" ~ to!string(p.exponent) ~
+                ", System) " ~ p.name ~ ";";
         }
         return code;
     }());
@@ -1701,8 +1701,8 @@ unittest {
         Prefix(3, "kilo", "k")
     ]; }) System;
 
-    alias MakePrefixTemplate!(3, System).result kilo;
-    alias MakePrefixTemplate!(-3, System).result milli;
+    alias prefixTemplate!(3, System) kilo;
+    alias prefixTemplate!(-3, System) milli;
 
     // FIXME: For reasons unknown, PrefixedUnit.toString() isn't CTFEable.
     enum kilofoo = kilo!foo;

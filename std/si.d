@@ -22,7 +22,7 @@ import std.units;
  * The full $(XREF units, PrefixSystem) of SI prefixes.
  *
  * For each prefix, a helper template like $(D kilo!()) for prefixing units
- * is provided (see $(XREF units, MakePrefixTemplate)).
+ * is provided (see $(XREF units, prefixTemplate)).
  */
 alias PrefixSystem!(10, { return [
     Prefix(-24, "yocto", "y"),
