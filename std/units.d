@@ -1648,10 +1648,10 @@ template PrefixSystem(long systemBase, alias getPrefixes)
 }
 
 /**
- * Shorthand for defining prefix functions like $(D kilo()).
+ * Shorthand for defining prefix templates like $(D kilo!()).
  *
- * The created function, accessible via the result property, takes a unit
- * instance and applies the prefix from the given list of prefixes to it.
+ * The created template, accessible via the result property, takes a unit
+ * instance and applies a prefix from the given list of prefixes to it.
  *
  * Example:
  * ---
@@ -1659,20 +1659,20 @@ template PrefixSystem(long systemBase, alias getPrefixes)
  *     Prefix(-3, "milli", "m"),
  *     Prefix(3, "kilo", "k")
  * ]; }) System;
- * alias MakePrefixFunc!(-3, System).result milli;
- * alias MakePrefixFunc!(3, System).result kilo;
- * // Use the functions like this: milli(metre), kilo(metre), etc.
+ * alias MakePrefixTemplate!(-3, System).result milli;
+ * alias MakePrefixTemplate!(3, System).result kilo;
+ * // Use the templates like this: milli!(metre), kilo!(metre), etc.
  * ---
  */
-template MakePrefixFunc(int exponent, alias System) {
-    auto result(U)(U u) if (isUnit!U) {
-        return (PrefixedUnit!(U, exponent, System)).init;
+template MakePrefixTemplate(int exponent, alias System) {
+    template result(alias u) if (isUnitInstance!u) {
+        enum result = PrefixedUnit!(u, exponent, System).init;
     }
 }
 
 /**
  * Mixin template for creating prefix functions for all the prefixes in a
- * prefix system. See $(LREF PrefixedUnit) and $(LREF MakePrefixFunc).
+ * prefix system. See $(LREF PrefixedUnit) and $(LREF MakePrefixTemplate).
  *
  * Example:
  * ---
@@ -1680,14 +1680,14 @@ template MakePrefixFunc(int exponent, alias System) {
  *     Prefix(-3, "milli", "m"),
  *     Prefix(3, "kilo", "k")
  * ]; });
- * // Use milli() and kilo() as usual.
+ * // Use milli!() and kilo!() as usual.
  * ---
  */
 mixin template DefinePrefixSystem(alias System) {
     mixin({
         string code;
         foreach (p; System.prefixes) {
-            code ~= "alias MakePrefixFunc!(" ~ to!string(p.exponent) ~
+            code ~= "alias MakePrefixTemplate!(" ~ to!string(p.exponent) ~
                 ", System).result " ~ p.name ~ ";";
         }
         return code;
@@ -1701,27 +1701,28 @@ unittest {
         Prefix(3, "kilo", "k")
     ]; }) System;
 
-    alias MakePrefixFunc!(3, System).result kilo;
-    alias MakePrefixFunc!(-3, System).result milli;
+    alias MakePrefixTemplate!(3, System).result kilo;
+    alias MakePrefixTemplate!(-3, System).result milli;
 
     // FIXME: For reasons unknown, PrefixedUnit.toString() isn't CTFEable.
-    enum kilofoo = kilo(foo);
+    enum kilofoo = kilo!foo;
     assert(kilofoo.toString() == "kilofoo");
     assert(kilofoo.toString(UnitString.symbol) == "kf");
 
-    static assert(is(typeof(milli(kilo(foo))) == Foo));
+    static assert(is(typeof(milli!(kilo!foo)) == Foo));
 
-    enum microfoo = milli(milli(foo));
+    enum microfoo = milli!(milli!foo);
     assert(microfoo.toString() == "microfoo");
     assert(microfoo.toString(UnitString.symbol) == "µf");
 
     static assert(!__traits(compiles, kilo(kilo(foo))),
         "Requesting a prefix not in the table didn't fail.");
 
-    assert(convert!Foo(1 * kilo(foo)) == 1000 * foo);
+    assert(convert!Foo(1 * kilo!foo) == 1000 * foo);
 
-    // Prefixes for compound units not implemented yet.
-    static assert(__traits(compiles, milli(foo * bar)));
+    enum millifoobar = milli!(foo * bar);
+    assert(millifoobar.toString() == "milli<bar foo>");
+    assert(millifoobar.toString(UnitString.symbol) == "m<br f>");
 }
 
 private {

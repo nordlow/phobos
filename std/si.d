@@ -21,8 +21,8 @@ import std.units;
 /**
  * The full $(XREF units, PrefixSystem) of SI prefixes.
  *
- * For each prefix, a helper function like $(D kilo()) for prefixing units
- * is provided (see $(XREF units, MakePrefixFunc)).
+ * For each prefix, a helper template like $(D kilo!()) for prefixing units
+ * is provided (see $(XREF units, MakePrefixTemplate)).
  */
 alias PrefixSystem!(10, { return [
     Prefix(-24, "yocto", "y"),
@@ -65,7 +65,7 @@ alias BaseUnit!("steradian", "sr") Steradian;
 enum ampere = Ampere.init;
 enum candela = Candela.init; /// ditto
 enum gram = Gram.init;       /// ditto
-enum kilogram = kilo(gram);  /// ditto
+enum kilogram = kilo!gram;   /// ditto
 enum kelvin = Kelvin.init;   /// ditto
 enum metre = Metre.init;     /// ditto
 alias metre meter;           /// ditto
@@ -131,13 +131,13 @@ unittest {
 
     static assert(convert!gram(2 * kilogram) == 2000 * gram);
     static assert(convert!kilogram(2000 * gram) == 2 * kilogram);
-    static assert(convert!(milli(newton))(1000 * newton) == 1000000 * milli(newton));
+    static assert(convert!(milli!newton)(1000 * newton) == 1000000 * milli!newton);
     static assert(
-        convert!(kilo(newton))(2000000 * gram * meter / pow!2(second)) ==
-        2 * kilo(newton)
+        convert!(kilo!newton)(2000000 * gram * meter / pow!2(second)) ==
+        2 * kilo!newton
     );
     static assert(
-        convert!pascal(1234.0 * micro(newton) / pow!2(milli(metre))) ==
+        convert!pascal(1234.0 * micro!newton / pow!2(milli!metre)) ==
         1234.0 * pascal
     );
 }
