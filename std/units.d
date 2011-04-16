@@ -32,7 +32,7 @@
  * Example:
  * ---
  * enum foo = baseUnit!("foo", "f");
- * enum bar = scale!(21, "bar", "b")(foo);
+ * enum bar = scale!(foo, 21, "bar", "b");
  *
  * auto a = 2 * bar;
  * assert(convert!foo(a) == 42 * foo);
@@ -1464,7 +1464,7 @@ private {
  * // instance.
  * alias ScaledUnit!(Metre, 0.0254, "inch", "in") Inch;
  * alias ScaledUnit!(metre, 0.0254, "inch", "in") Inch;
- * enum inch = scale!(0.0254, "inch", "in")(metre);
+ * enum inch = scale!(metre, 0.0254, "inch", "in");
  * ---
  */
 struct ScaledUnit(BaseUnit, alias toBaseFactor, string name,
@@ -1493,16 +1493,14 @@ struct ScaledUnit(BaseUnit, alias toBaseFactor, string name,
 template ScaledUnit(alias baseUnit, alias toBaseFactor, string name,
     string symbol = null) if (isUnitInstance!baseUnit)
 {
-    alias ScaledUnit!(typeof(baseUnit), toBaseFactor, name, symbol)
-        ScaledUnit;
+    alias ScaledUnit!(typeof(baseUnit), toBaseFactor, name, symbol) ScaledUnit;
 }
 
 /// ditto
-auto scale(alias toBaseFactor, string name, string symbol = null, U)(U u)
-    if (isUnit!U)
+template scale(alias baseUnit, alias toBaseFactor, string name,
+    string symbol = null) if (isUnitInstance!baseUnit)
 {
-    alias ScaledUnit!(U, toBaseFactor, name, symbol) New;
-    return New.init;
+    enum scale = ScaledUnit!(baseUnit, toBaseFactor, name, symbol).init;
 }
 
 version (unittest) {
@@ -1510,25 +1508,24 @@ version (unittest) {
 }
 unittest {
     // Simple conversions should be possible at compile time.
-    enum millifoo = scale!(0.001, "millifoo")(foo);
+    enum millifoo = scale!(foo, 0.001, "millifoo");
     static assert(convert!millifoo(1 * foo) == 1000 * millifoo);
 
     // Test using a global variable as conversion factor (possible because
     // ScaledUnit takes an alias).
-    enum mile = scale!(fooToMile, "mile")(foo);
+    enum mile = scale!(foo, fooToMile, "mile");
     fooToMile = 1852;
     assert(convert!Foo(1 * mile) == 1852 * foo);
 
-    // Conversion over two hops. This test isn't specific to ScaledUnit,
-    // fix the test once ScaledUnit folding is implemented.
-    enum microfoo = scale!(0.001, "microfoo")(millifoo);
+    // Conversion over two hops. This test isn't specific to ScaledUnit.
+    enum microfoo = scale!(millifoo, 0.001, "microfoo");
     static assert(convert!microfoo(1 * foo) == 1000000 * microfoo);
 
     // Conversion over multiple hops in both directions. If A-->B represents
     // a conversion defined at A to B, the chain looks like this:
     // MicroFoo-->MilliFoo-->Foo<--KiloFoo<--MegaFoo.
-    enum kilofoo = scale!(1000, "kilofoo")(foo);
-    enum megafoo = scale!(1000, "megafoo")(kilofoo);
+    enum kilofoo = scale!(foo, 1000, "kilofoo");
+    enum megafoo = scale!(kilofoo, 1000, "megafoo");
     static assert(convert!microfoo(1L * megafoo) == 10L^^12 * microfoo);
 }
 
