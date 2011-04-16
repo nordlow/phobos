@@ -300,7 +300,7 @@ enum dimensionless = Dimensionless.init; /// ditto
  *
  * Multiple BaseUnitExps make up a $(LREF DerivedUnit).
  */
-struct BaseUnitExp(B, R) if (!isDerivedUnit!B && isUnit!B) {
+struct BaseUnitExp(B, R) if (!isDerivedUnit!B && isUnit!B && isRational!R) {
     alias B BaseUnit;
     alias R Exp;
 }
@@ -539,10 +539,14 @@ private {
     }
 
     template isDerivedUnit(T) {
-        // I can't think of a *clean* way to check whether T is a DUnit
-        // instance, so just use a duck typing-like approach (instead of
-        // relying on the mangled names or such).
-        enum isDerivedUnit = __traits(compiles, T.BaseUnitExps);
+        // Matching DUnit with its type tuple parameter directly doesn't work,
+        // so take advantage of the fact that we can access BaseUnitExps from
+        // outside.
+        static if (is(T.BaseUnitExps) && is(T : DUnit!(T.BaseUnitExps))) {
+            enum isDerivedUnit = true;
+        } else {
+            enum isDerivedUnit = false;
+        }
     }
 }
 
@@ -1112,7 +1116,7 @@ private {
         }
     }
 
-    template ProductUnit(Lhs, Rhs) {
+    template ProductUnit(Lhs, Rhs) if (isUnit!Lhs && isUnit!Rhs) {
         static if (isDerivedUnit!Lhs) {
             alias Lhs.BaseUnitExps LBUExps;
         } else {
@@ -1130,12 +1134,12 @@ private {
         alias DerivedUnit!(LBUExps, RBUExps) Result;
     }
 
-    template QuotientUnit(Lhs, Rhs) {
+    template QuotientUnit(Lhs, Rhs) if (isUnit!Lhs && isUnit!Rhs) {
         // Rewrite lhs / rhs as lhs * rhs^^-1.
         alias ProductUnit!(Lhs, PowerUnit!(Rhs, Rational!(-1))) QuotientUnit;
     }
 
-    template PowerUnit(U, Exp) {
+    template PowerUnit(U, Exp) if (isUnit!U && isRational!Exp) {
         static if (isDerivedUnit!U) {
             // Multiply all base unit exponents with Exp to get the new list
             // of BaseUnitExps.
@@ -1397,7 +1401,7 @@ private {
         }
     }
 
-    template PowerConvFunc(alias func, Exp) {
+    template PowerConvFunc(alias func, Exp) if (isRational!Exp) {
         // @@BUG@@: Why doesn't this assert trigger on negative exponents?!
         static assert(Exp.numerator > 0);
         static if (Exp.denominator != 1u) {
@@ -1561,8 +1565,8 @@ struct PrefixedUnit(BaseUnit, int exponent, alias System) if (
     }
 
     // This convoluted way of avoiding negative exponents to ^^ is used so
-    // that we can avoid to use floating point numbers. Need a better solution
-    // though.
+    // we can avoid to use floating point numbers (raising integers to
+    // negative exponents is not defined). Need a better solution though.
     static V toBase(V)(V v) {
         static if (exponent < 0) {
             return cast(V)(v / (prefixBase ^^ (-exponent)));
@@ -1742,7 +1746,7 @@ private {
                 return t;
             }
         }
-        assert(false, "Prefix for exponent" ~ to!string(exponent) ~
+        assert(false, "Prefix for exponent " ~ to!string(exponent) ~
             " not defined in prefix list: " ~ to!string(T.prefixes));
     }
 }
@@ -1906,16 +1910,35 @@ unittest {
     static assert(is(Rational!(6, 3u) == Rational!2));
 }
 
+template isRational(T) {
+    // @@BUG@@: Uncommenting the explicit type check for Rational breaks the
+    // unittests because some instance of Rational!(-1,1u) apparently isn't
+    // matched.
+    static if (is(typeof(T.numerator) : int) &&
+        is(typeof(T.denominator) : uint) /+&&
+        is(T : Rational!(T.numerator, T.denominator))+/
+    ) {
+        enum isRational = true;
+    } else {
+        enum isRational = false;
+    }
+}
+
+unittest {
+    static assert(isRational!(Rational!(-2, 1u)));
+    static assert(!isRational!Foo);
+}
+
 /**
  * The sum of two compile-time rational numbers.
  */
-template Sum(Lhs, Rhs) {
+template Sum(Lhs, Rhs) if (isRational!Lhs && isRational!Rhs) {
     // The extra cast(int) is needed because DMD apparently uses unsigned
     // literals otherwise (remove it to see the unit test below fail).
     alias Rational!(
         cast(int)((Lhs.numerator * Rhs.denominator) +
             (Rhs.numerator * Lhs.denominator)),
-        Lhs.denominator * Rhs.denominator
+        cast(uint)(Lhs.denominator * Rhs.denominator)
     ) Sum;
 }
 
@@ -1932,7 +1955,7 @@ unittest {
 /**
  * The difference between two compile-time rational numbers.
  */
-template Difference(Lhs, Rhs) {
+template Difference(Lhs, Rhs) if (isRational!Lhs && isRational!Rhs) {
     // The extra cast(int) is needed because DMD apparently uses unsigned
     // literals otherwise (remove it to see the unit test below fail).
     alias Rational!(
@@ -1954,7 +1977,7 @@ unittest {
 /**
  * The product of two compile-time rational numbers.
  */
-template Product(Lhs, Rhs) {
+template Product(Lhs, Rhs) if (isRational!Lhs && isRational!Rhs) {
     alias Rational!(
         Lhs.numerator * Rhs.numerator,
         Lhs.denominator * Rhs.denominator
