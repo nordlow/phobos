@@ -12,7 +12,8 @@
  *
  * Conversions only happen if explicitly requested and there is no different
  * internal representation of values – for example $(D 1 * kilo(metre)) is
- * just as 1 in memory, not as 1000 or relative to any other »canonical unit«.
+ * stored just as 1 in memory, not as 1000 or relative to any other »canonical
+ * unit«.
  *
  * On top of the template core of the module, to which units are types only,
  * a layer making use of »dummy« unit instances with operators defined on them
@@ -1627,10 +1628,9 @@ struct Prefix {
  * $(D getPrefixes) has to be a parameterless callable returning
  * $(LREF Prefix)[]. This scheme is used (instead of directly passing the
  * prefix array as a parameter) to reduce code bloat, because delegate
- * literals are mangeled alias much shorter than array literals. The effect on
- * the compiled size of the code is quite strong because the mangled name
- * of a PrefixSystem instance is part of every symbol in which a PrefixedUnit
- * is involved.
+ * literals are mangled much shorter than array literals. The effect on the
+ * binary size is quite strong because the mangled name of a PrefixSystem
+ * instance is part of every symbol in which a PrefixedUnit is involved.
  *
  * Example:
  * ---
@@ -1685,6 +1685,7 @@ template prefixTemplate(int exponent, alias System) {
  */
 mixin template DefinePrefixSystem(alias System) {
     mixin({
+        import std.conv;
         string code;
         foreach (p; System.prefixes) {
             code ~= "alias prefixTemplate!(" ~ to!string(p.exponent) ~
