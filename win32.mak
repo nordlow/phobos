@@ -22,7 +22,7 @@
 
 ## Copy command
 
-CP=cp
+CP=copy
 
 ## Directory where dmd has been installed
 
@@ -101,22 +101,24 @@ OBJS= Czlib.obj Dzlib.obj Ccurl.obj \
 # The separation is a workaround for bug 4904 (optlink bug 3372).
 # SRCS_1 is the heavyweight modules which are most likely to trigger the bug.
 # Do not add any more modules to SRCS_1.
-SRCS_1 = std\stdio.d std\stdiobase.d \
+SRCS_11 = std\stdio.d std\stdiobase.d \
 	std\string.d std\format.d \
-	std\algorithm.d std\array.d std\functional.d std\range.d \
-	std\path.d std\file.d std\outbuffer.d std\utf.d
+	std\algorithm.d std\file.d
+
+SRCS_12 = std\array.d std\functional.d std\range.d \
+	std\path.d std\outbuffer.d std\utf.d
 
 SRCS_2 = std\math.d std\complex.d std\numeric.d std\bigint.d \
     std\dateparse.d std\date.d std\datetime.d \
-	std\metastrings.d std\bitmanip.d std\typecons.d \
+    std\metastrings.d std\bitmanip.d std\typecons.d \
     std\uni.d std\base64.d std\md5.d std\ctype.d \
     std\demangle.d std\uri.d std\mmfile.d std\getopt.d \
-	std\signals.d std\typetuple.d std\traits.d std\bind.d \
-	std\encoding.d std\xml.d \
+    std\signals.d std\typetuple.d std\traits.d std\bind.d \
+    std\encoding.d std\xml.d \
     std\random.d std\regexp.d \
-	std\contracts.d std\exception.d \
-	std\intrinsic.d std\compiler.d std\cpuid.d \
-	std\process.d std\system.d std\concurrency.d
+    std\contracts.d std\exception.d \
+    std\compiler.d std\cpuid.d \
+    std\process.d std\system.d std\concurrency.d
 
 SRCS_3 = std\variant.d \
 	std\stream.d std\socket.d std\socketstream.d \
@@ -128,6 +130,7 @@ SRCS_3 = std\variant.d \
 	std\stdarg.d \
 	std\stdint.d \
 	std\json.d \
+	std\parallelism.d \
 	std\gregorian.d \
     std\mathspecial.d \
 	std\internal\math\biguintcore.d \
@@ -152,7 +155,7 @@ SRCS_3 = std\variant.d \
 
 # The separation is a workaround for bug 4904 (optlink bug 3372).
 # See: http://lists.puremagic.com/pipermail/phobos/2010-September/002741.html
-SRCS = $(SRCS_1) $(SRCS_2) $(SRCS_3)
+SRCS = $(SRCS_11) $(SRCS_12) $(SRCS_2) $(SRCS_3)
 
 
 DOCS=	$(DOC)\object.html \
@@ -198,7 +201,6 @@ DOCS=	$(DOC)\object.html \
 	$(DOC)\std_gc.html \
 	$(DOC)\std_getopt.html \
 	$(DOC)\std_gregorian.html \
-	$(DOC)\std_intrinsic.html \
 	$(DOC)\std_json.html \
 	$(DOC)\std_math.html \
 	$(DOC)\std_mathspecial.html \
@@ -207,6 +209,7 @@ DOCS=	$(DOC)\object.html \
 	$(DOC)\std_mmfile.html \
 	$(DOC)\std_numeric.html \
 	$(DOC)\std_outbuffer.html \
+	$(DOC)\std_parallelism.html \
 	$(DOC)\std_path.html \
 	$(DOC)\std_perf.html \
 	$(DOC)\std_process.html \
@@ -246,6 +249,7 @@ DOCS=	$(DOC)\object.html \
 	$(DOC)\std_c_string.html \
 	$(DOC)\std_c_time.html \
 	$(DOC)\std_c_wcharh.html \
+	$(DOC)\std_net_isemail.html \
 	$(DOC)\phobos.html
 
 SRC=	unittest.d crc32.d index.d
@@ -255,7 +259,7 @@ SRC_STD= std\zlib.d std\zip.d std\stdint.d std\container.d std\conv.d std\utf.d 
 	std\ctype.d std\file.d std\compiler.d std\system.d \
 	std\outbuffer.d std\md5.d std\base64.d \
 	std\dateparse.d std\mmfile.d \
-	std\intrinsic.d std\syserror.d \
+	std\syserror.d \
 	std\regexp.d std\random.d std\stream.d std\process.d \
 	std\socket.d std\socketstream.d std\loader.d std\stdarg.d std\format.d \
 	std\stdio.d std\perf.d std\uni.d \
@@ -265,9 +269,11 @@ SRC_STD= std\zlib.d std\zip.d std\stdint.d std\container.d std\conv.d std\utf.d 
 	std\variant.d std\numeric.d std\bitmanip.d std\complex.d std\mathspecial.d \
 	std\functional.d std\algorithm.d std\array.d std\typecons.d \
 	std\json.d std\xml.d std\encoding.d std\bigint.d std\concurrency.d \
-	std\range.d std\stdiobase.d \
+	std\range.d std\stdiobase.d std\parallelism.d \
 	std\regex.d std\datebase.d \
 	std\__fileinit.d std\gregorian.d std\exception.d
+
+SRC_STD_NET= std\net\isemail.d
 
 SRC_STD_C= std\c\process.d std\c\stdlib.d std\c\time.d std\c\stdio.d \
 	std\c\math.d std\c\stdarg.d std\c\stddef.d std\c\fenv.d std\c\string.d \
@@ -294,7 +300,7 @@ SRC_STD_INTERNAL_MATH= std\internal\math\biguintcore.d \
 
 SRC_ETC=
 
-SRC_ETC_C= etc\c\zlib.d etc\c\curl.d
+SRC_ETC_C= etc\c\zlib.d etc\c\curl.d etc\c\sqlite3.d
 
 SRC_ZLIB= \
 	etc\c\zlib\crc32.h \
@@ -341,9 +347,10 @@ phobos.lib : $(OBJS) $(SRCS) \
 		etc\c\zlib\zlib.lib $(DRUNTIMELIB)
 
 unittest : $(SRCS) phobos.lib
-	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest1.obj $(SRCS_1)
+	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest11.obj $(SRCS_11)
+	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest12.obj $(SRCS_12)
 	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest2.obj $(SRCS_2)
-	$(DMD) $(UDFLAGS) -L/co -unittest unittest.d $(SRCS_3) unittest1.obj unittest2.obj \
+	$(DMD) $(UDFLAGS) -L/co -unittest unittest.d $(SRCS_3) unittest11.obj unittest12.obj unittest2.obj \
 		etc\c\zlib\zlib.lib $(DRUNTIMELIB)
 	unittest
 
@@ -468,6 +475,9 @@ numeric.obj : std\numeric.d
 outbuffer.obj : std\outbuffer.d
 	$(DMD) -c $(DFLAGS) std\outbuffer.d
 
+parallelism.obj : std\parallelism.d
+	$(DMD) -c $(DFLAGS) std\parallelism.d
+
 path.obj : std\path.d
 	$(DMD) -c $(DFLAGS) std\path.d
 
@@ -557,6 +567,11 @@ gammafunction.obj : std\internal\math\gammafunction.d
 
 errorfunction.obj : std\internal\math\errorfunction.d
 	$(DMD) -c $(DFLAGS) std\internal\math\errorfunction.d
+
+### std\net
+
+isemail.obj : std\net\isemail.d
+	$(DMD) -c $(DFLAGS) std\net\isemail.d
 
 ### std\windows
 
@@ -735,9 +750,6 @@ $(DOC)\std_getopt.html : $(STDDOC) std\getopt.d
 $(DOC)\std_gregorian.html : $(STDDOC) std\gregorian.d
 	$(DMD) -c -o- $(DFLAGS) -Df$(DOC)\std_gregorian.html $(STDDOC) std\gregorian.d
 
-$(DOC)\std_intrinsic.html : $(STDDOC) std\intrinsic.d
-	$(DMD) -c -o- $(DFLAGS) -Df$(DOC)\std_intrinsic.html $(STDDOC) std\intrinsic.d
-
 $(DOC)\std_json.html : $(STDDOC) std\json.d
 	$(DMD) -c -o- $(DFLAGS) -Df$(DOC)\std_json.html $(STDDOC) std\json.d
 
@@ -761,6 +773,9 @@ $(DOC)\std_numeric.html : $(STDDOC) std\numeric.d
 
 $(DOC)\std_outbuffer.html : $(STDDOC) std\outbuffer.d
 	$(DMD) -c -o- $(DFLAGS) -Df$(DOC)\std_outbuffer.html $(STDDOC) std\outbuffer.d
+
+$(DOC)\std_parallelism.html : $(STDDOC) std\parallelism.d
+	$(DMD) -c -o- $(DFLAGS) -Df$(DOC)\std_parallelism.html $(STDDOC) std\parallelism.d
 
 $(DOC)\std_path.html : $(STDDOC) std\path.d
 	$(DMD) -c -o- $(DFLAGS) -Df$(DOC)\std_path.html $(STDDOC) std\path.d
@@ -882,13 +897,16 @@ $(DOC)\std_c_time.html : $(STDDOC) std\c\time.d
 $(DOC)\std_c_wcharh.html : $(STDDOC) std\c\wcharh.d
 	$(DMD) -c -o- $(DFLAGS) -Df$(DOC)\std_c_wcharh.html $(STDDOC) std\c\wcharh.d
 
+$(DOC)\std_net_isemail.html : $(STDDOC) std\net\isemail.d
+	$(DMD) -c -o- $(DFLAGS) -Df$(DOC)\std_net_isemail.html $(STDDOC) std\net\isemail.d
+
 
 ######################################################
 
 zip : win32.mak posix.mak $(STDDOC) $(SRC) \
 	$(SRC_STD) $(SRC_STD_C) $(SRC_STD_WIN) \
 	$(SRC_STD_C_WIN) $(SRC_STD_C_LINUX) $(SRC_STD_C_OSX) $(SRC_STD_C_FREEBSD) \
-	$(SRC_ETC) $(SRC_ETC_C) $(SRC_ZLIB)
+	$(SRC_ETC) $(SRC_ETC_C) $(SRC_ZLIB) $(SRC_STD_NET)
 	del phobos.zip
 	zip32 -u phobos win32.mak posix.mak $(STDDOC)
 	zip32 -u phobos $(SRC)
@@ -902,6 +920,7 @@ zip : win32.mak posix.mak $(STDDOC) $(SRC) \
 	zip32 -u phobos $(SRC_STD_INTERNAL_MATH)
 	zip32 -u phobos $(SRC_ETC) $(SRC_ETC_C)
 	zip32 -u phobos $(SRC_ZLIB)
+	zip32 -u phobos $(SRC_STD_NET)
 
 clean:
 	cd etc\c\zlib
@@ -922,6 +941,7 @@ install:
 	$(CP) win32.mak posix.mak $(STDDOC) $(DIR)\src\phobos
 	$(CP) $(SRC) $(DIR)\src\phobos
 	$(CP) $(SRC_STD) $(DIR)\src\phobos\std
+	$(CP) $(SRC_STD_NET) $(DIR)\src\phobos\std\net
 	$(CP) $(SRC_STD_C) $(DIR)\src\phobos\std\c
 	$(CP) $(SRC_STD_WIN) $(DIR)\src\phobos\std\windows
 	$(CP) $(SRC_STD_C_WIN) $(DIR)\src\phobos\std\c\windows
@@ -938,6 +958,7 @@ svn:
 	$(CP) win32.mak posix.mak $(STDDOC) $(SVN)\
 	$(CP) $(SRC) $(SVN)\
 	$(CP) $(SRC_STD) $(SVN)\std
+	$(CP) $(SRC_STD_NET) $(SVN)\std\net
 	$(CP) $(SRC_STD_C) $(SVN)\std\c
 	$(CP) $(SRC_STD_WIN) $(SVN)\std\windows
 	$(CP) $(SRC_STD_C_WIN) $(SVN)\std\c\windows

@@ -23,7 +23,8 @@ fantascienza.net/leonardo/so/, Leonardo Maffi).
 module std.range;
 
 public import std.array;
-import std.algorithm, std.conv, std.exception,  std.functional, std.intrinsic,
+import core.bitop;
+import std.algorithm, std.conv, std.exception,  std.functional,
     std.random, std.traits, std.typecons, std.typetuple;
 
 // For testing only.  This code is included in a string literal to be included
@@ -2293,11 +2294,10 @@ unittest
 }
 
 /**
-Similar to $(XREF range,take), but assumes that $(D range) has at
-least $(D n) elements. Consequently, the result of $(D
-takeExactly(range, n)) always defines the $(D length) property (and
-initializes it to $(D n)) even when $(D range) itself does not define
-$(D length).
+Similar to $(LREF take), but assumes that $(D range) has at least $(D
+n) elements. Consequently, the result of $(D takeExactly(range, n))
+always defines the $(D length) property (and initializes it to $(D n))
+even when $(D range) itself does not define $(D length).
 
 If $(D R) is a random-access range, the result of $(D takeExactly) is
 $(D R) as well because $(D takeExactly) simply returns a slice of $(D
@@ -2864,8 +2864,8 @@ if(Ranges.length && allSatisfy!(isInputRange, staticMap!(Unqual, Ranges)))
 
 /**
    Builds an object. Usually this is invoked indirectly by using the
-   $(XREF range,zip) function.
-*/
+   $(LREF zip) function.
+ */
     this(R rs, StoppingPolicy s = StoppingPolicy.shortest)
     {
         stoppingPolicy = s;
@@ -3960,7 +3960,7 @@ if (isIntegral!(CommonType!(B, E)) || isPointer!(CommonType!(B, E)))
             ret.pastLast -= this.length - upper;
             return ret;
         }
-        @property auto length()        //const
+        @property typeof(unsigned(pastLast - current)) length()        //const
         {
             return unsigned(pastLast - current);
         }
@@ -4054,6 +4054,7 @@ if (isFloatingPoint!(CommonType!(B, E, S)))
 
 unittest
 {
+    static assert(hasLength!(typeof(iota(0, 2))));
     auto r = iota(0, 10, 1);
     assert(equal(r, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9][]));
 
@@ -5317,9 +5318,8 @@ unittest {
 
 /**
    Policy used with the searching primitives $(D lowerBound), $(D
-   upperBound), and $(D equalRange) of $(XREF range,SortedRange)
-   below.
-*/
+   upperBound), and $(D equalRange) of $(LREF SortedRange) below.
+ */
 enum SearchPolicy
 {
     /**
@@ -5370,11 +5370,11 @@ enum SearchPolicy
 /**
    Represents a sorted random-access range. In addition to the regular
    range primitives, supports fast operations using binary search. To
-   obtain a $(D SortedRange) from an unsorted range $(D r), use $(XREF
-   algorithm, sort) which sorts $(D r) in place and returns the
-   corresponding $(D SortedRange). To construct a $(D SortedRange) from a
-   range $(D r) that is known to be already sorted, use $(XREF
-   range,assumeSorted) described below.
+   obtain a $(D SortedRange) from an unsorted range $(D r), use
+   $(XREF algorithm, sort) which sorts $(D r) in place and returns the
+   corresponding $(D SortedRange). To construct a $(D SortedRange)
+   from a range $(D r) that is known to be already sorted, use
+   $(LREF assumeSorted) described below.
 
    Example:
 
@@ -5600,8 +5600,8 @@ if (isRandomAccessRange!Range)
    largest left subrange on which $(D pred(x, value)) is $(D true) for
    all $(D x) (e.g., if $(D pred) is "less than", returns the portion of
    the range with elements strictly smaller than $(D value)). The search
-   schedule and its complexity are documented in $(XREF
-   range,SearchPolicy).  See also STL's $(WEB
+   schedule and its complexity are documented in
+   $(LREF SearchPolicy).  See also STL's $(WEB
    sgi.com/tech/stl/lower_bound.html, lower_bound).
 
    Example:
@@ -5621,11 +5621,11 @@ if (isRandomAccessRange!Range)
 // upperBound
 /**
    This function uses binary search with policy $(D sp) to find the
-   largest right subrange on which $(D pred(value, x)) is $(D true) for
-   all $(D x) (e.g., if $(D pred) is "less than", returns the portion of
-   the range with elements strictly greater than $(D value)). The search
-   schedule and its complexity are documented in $(XREF
-   range,SearchPolicy).  See also STL's $(WEB
+   largest right subrange on which $(D pred(value, x)) is $(D true)
+   for all $(D x) (e.g., if $(D pred) is "less than", returns the
+   portion of the range with elements strictly greater than $(D
+   value)). The search schedule and its complexity are documented in
+   $(LREF SearchPolicy).  See also STL's $(WEB
    sgi.com/tech/stl/lower_bound.html,upper_bound).
 
    Example:
@@ -5897,7 +5897,7 @@ effect on the complexity of subsequent operations specific to sorted
 ranges (such as binary search). The probability of an arbitrary
 unsorted range failing the test is very high (however, an
 almost-sorted range is likely to pass it). To check for sortedness at
-cost $(BIGOH n), use $(XREF algorithm, isSorted).
+cost $(BIGOH n), use $(XREF algorithm,isSorted).
  */
 auto assumeSorted(alias pred = "a < b", R)(R r)
 if (isRandomAccessRange!(Unqual!R))
