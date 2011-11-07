@@ -947,10 +947,13 @@ Defines the container's primary range, which embodies a forward range.
         /// ditto
         @property T front() { return _head._payload; }
         /// ditto
-        @property void front(T value)
+        static if (isAssignable!(T, T))
         {
-            enforce(_head);
-            _head._payload = value;
+            @property void front(T value)
+            {
+                enforce(_head);
+                _head._payload = value;
+            }
         }
         /// ditto
         void popFront()
@@ -1025,10 +1028,13 @@ Forward to $(D opSlice().front(value)).
 
 Complexity: $(BIGOH 1)
      */
-    @property void front(T value)
+    static if (isAssignable!(T, T))
     {
-        enforce(_root);
-        _root._payload = value;
+        @property void front(T value)
+        {
+            enforce(_root);
+            _root._payload = value;
+        }
     }
 
     unittest
@@ -1439,6 +1445,16 @@ unittest
 unittest
 {
     auto s = make!(SList!int)(1, 2, 3);
+}
+
+unittest
+{
+    // 5193
+    static struct Data
+    {
+        const int val;
+    }
+    SList!Data list;
 }
 
 /**
@@ -2330,8 +2346,8 @@ version(unittest)
         uint* pDestructionMask;
         ~this()
         {
-            if (pDestructionMask) 
-                *pDestructionMask += 1 << order; 
+            if (pDestructionMask)
+                *pDestructionMask += 1 << order;
         }
     }
 }
@@ -3082,7 +3098,7 @@ struct Array(T) if (is(T == bool))
     @property bool back()
     {
         enforce(!empty);
-        return data.back & (1u << ((_store._length - 1) % bitsPerWord));
+        return cast(bool)(data.back & (1u << ((_store._length - 1) % bitsPerWord)));
     }
 
     /// Ditto
@@ -3117,7 +3133,7 @@ struct Array(T) if (is(T == bool))
         auto div = cast(size_t) (i / bitsPerWord);
         auto rem = i % bitsPerWord;
         enforce(div < data.length);
-        return data.ptr[div] & (1u << rem);
+        return cast(bool)(data.ptr[div] & (1u << rem));
     }
     /// ditto
     void opIndexAssign(bool value, ulong i)
@@ -4254,7 +4270,8 @@ class RedBlackTree(T, alias less = "a < b", bool allowDuplicates = false)
     {
         private enum doUnittest = isIntegral!T;
 
-        bool arrayEqual(T[] arr)
+        // note, this must be final so it does not affect the vtable layout
+        final bool arrayEqual(T[] arr)
         {
             if(walkLength(this[]) == arr.length)
             {

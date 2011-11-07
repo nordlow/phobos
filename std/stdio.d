@@ -16,11 +16,12 @@ Authors:   $(WEB digitalmars.com, Walter Bright),
 module std.stdio;
 
 public import core.stdc.stdio;
+static import std.c.stdio;
 import std.stdiobase;
-import core.memory, core.stdc.errno, core.stdc.stddef, core.stdc.stdlib,
+import core.stdc.errno, core.stdc.stddef, core.stdc.stdlib, core.memory,
     core.stdc.string, core.stdc.wchar_;
-import std.algorithm, std.array, std.conv, std.exception, std.file, std.format,
-    std.range, std.string, std.traits, std.typecons,
+import std.algorithm, std.array, std.conv, std.exception, std.format,
+    std.file, std.range, std.string, std.traits, std.typecons,
     std.typetuple, std.utf;
 
 version (DigitalMars) version (Windows)
@@ -660,6 +661,10 @@ arguments in text format to the file. */
             {
                 toTextRange(arg, w);
             }
+            else static if (is(Unqual!A == bool))
+            {
+                put(w, arg ? "true" : "false");
+            }
             else static if (is(A : char))
             {
                 put(w, arg);
@@ -903,7 +908,7 @@ Returns the file number corresponding to this object.
 
 /**
 Range that reads one line at a time. */
-    enum KeepTerminator : bool { no, yes }
+    alias std.string.KeepTerminator KeepTerminator;
     /// ditto
     struct ByLine(Char, Terminator)
     {
@@ -2317,7 +2322,7 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator = '\n')
             }
             if (i > sz)
             {
-                buf = cast(char[])GC.malloc(i, GC.BlkAttr.NO_SCAN)[0 .. i];
+                buf = uninitializedArray!(char[])(i);
             }
             if (i - 1)
                 memcpy(buf.ptr, p, i - 1);
@@ -2339,7 +2344,7 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator = '\n')
             }
             if (i > sz)
             {
-                buf = cast(char[])GC.malloc(i, GC.BlkAttr.NO_SCAN)[0 .. i];
+                buf = uninitializedArray!(char[])(i);
             }
             memcpy(buf.ptr, p, i);
             buf = buf[0 .. i];

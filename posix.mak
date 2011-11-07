@@ -54,7 +54,7 @@ DOCSRC = ../d-programming-language.org
 WEBSITE_DIR = ../web
 DOC_OUTPUT_DIR = $(WEBSITE_DIR)/phobos-prerelease
 BIGDOC_OUTPUT_DIR = /tmp
-SRC_DOCUMENTABLES = index.d $(addsuffix .d,$(STD_MODULES) $(EXTRA_DOCUMENTABLES))
+SRC_DOCUMENTABLES = index.d $(addsuffix .d,$(STD_MODULES) $(STD_NET_MODULES) $(EXTRA_DOCUMENTABLES))
 STDDOC = $(DOCSRC)/std.ddoc
 BIGSTDDOC = $(DOCSRC)/std_consolidated.ddoc
 DDOCFLAGS=-m$(MODEL) -d -c -o- -version=StdDdoc -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS)
@@ -154,9 +154,9 @@ endif
 MAIN = $(ROOT)/emptymain.d
 
 # Stuff in std/
-STD_MODULES = $(addprefix std/, algorithm array base64 bigint bitmanip	\
-        compiler complex concurrency container contracts conv cpuid		\
-        cstream ctype date datetime datebase dateparse demangle			\
+STD_MODULES = $(addprefix std/, algorithm array ascii base64 bigint		\
+        bitmanip compiler complex concurrency container contracts conv	\
+        cpuid cstream ctype date datetime datebase dateparse demangle	\
         encoding exception file format functional getopt gregorian		\
         json loader math mathspecial md5 metastrings mmfile numeric		\
         outbuffer parallelism path perf process random range regex		\
@@ -185,7 +185,8 @@ std/c/, fenv locale math process stdarg stddef stdio stdlib string	\
 time wcharh)
 EXTRA_MODULES += $(EXTRA_DOCUMENTABLES) $(addprefix			\
 	std/internal/math/, biguintcore biguintnoasm biguintx86	\
-	gammafunction errorfunction)
+	gammafunction errorfunction) $(addprefix std/internal/, \
+	processinit uni uni_tab)
 
 # Aggregate all D modules relevant to this build
 D_MODULES = crc32 $(STD_MODULES) $(EXTRA_MODULES) $(STD_NET_MODULES)
@@ -193,7 +194,10 @@ D_MODULES = crc32 $(STD_MODULES) $(EXTRA_MODULES) $(STD_NET_MODULES)
 D_FILES = $(addsuffix .d,$(D_MODULES))
 # Aggregate all D modules over all OSs (this is for the zip file)
 ALL_D_FILES = $(addsuffix .d,crc32 $(STD_MODULES) $(EXTRA_MODULES)	\
-$(EXTRA_MODULES_LINUX) $(EXTRA_MODULES_OSX) $(EXTRA_MODULES_FREEBSD) $(EXTRA_MODULES_WIN32))
+$(EXTRA_MODULES_LINUX) $(EXTRA_MODULES_OSX) $(EXTRA_MODULES_FREEBSD) $(EXTRA_MODULES_WIN32)) \
+	std/stdarg.d std/bind.d std/internal/windows/advapi32.d std/__fileinit.d \
+	std/windows/registry.d std/c/linux/pthread.d std/c/linux/termios.d \
+	std/c/linux/tipc.d std/net/isemail.d
 
 # C files to be part of the build
 C_MODULES = $(addprefix etc/c/zlib/, adler32 compress crc32 deflate	\
@@ -241,11 +245,6 @@ $(ROOT)/%$(DOTOBJ) : %.c
 
 $(LIB) : $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
 	$(DMD) $(DFLAGS) -lib -of$@ $(DRUNTIME) $(D_FILES) $(OBJS)
-
-ifeq ($(OS)$(MODEL),freebsd64)
-DISABLED_TESTS += std/container
-# fails freebsd64 debug test
-endif
 
 ifeq ($(MODEL),64)
 DISABLED_TESTS += std/conv
@@ -317,6 +316,9 @@ $(DOC_OUTPUT_DIR)/std_c_linux_%.html : std/c/linux/%.d $(STDDOC)
 
 $(DOC_OUTPUT_DIR)/std_c_windows_%.html : std/c/windows/%.d $(STDDOC)
 	$(DDOC) $(DDOCFLAGS) -Df$@ $<
+
+$(DOC_OUTPUT_DIR)/std_net_%.html : std/net/%.d $(STDDOC)
+	$(DDOC) $(DDOCFLAGS)  $(STDDOC) -Df$@ $<
 
 $(DOC_OUTPUT_DIR)/etc_c_%.html : etc/c/%.d $(STDDOC)
 	$(DDOC) $(DDOCFLAGS)  $(STDDOC) -Df$@ $<

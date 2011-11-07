@@ -8,6 +8,7 @@ module std.c.linux.socket;
 
 private import core.stdc.stdint;
 public import core.sys.posix.arpa.inet;
+public import core.sys.posix.netdb;
 public import core.sys.posix.netinet.tcp;
 public import core.sys.posix.netinet.in_;
 public import core.sys.posix.sys.select;
@@ -40,46 +41,8 @@ enum: int
     IPPROTO_MAX =   256,
 }
 
-struct protoent
-{
-    char* p_name;
-    char** p_aliases;
-    int32_t p_proto;
-}
-
-protoent* getprotobyname(in char* name);
-protoent* getprotobynumber(int number);
-
-struct servent
-{
-    char* s_name;
-    char** s_aliases;
-    int32_t s_port;
-    char* s_proto;
-}
-
-servent* getservbyname(in char* name, in char* proto);
-servent* getservbyport(int port, in char* proto);
-
-struct hostent
-{
-    char* h_name;
-    char** h_aliases;
-    int32_t h_addrtype;
-    int32_t h_length;
-    char** h_addr_list;
-
-
-    char* h_addr()
-    {
-        return h_addr_list[0];
-    }
-}
-
-hostent* gethostbyname(in char* name);
 int gethostbyname_r(in char* name, hostent* ret, void* buf, size_t buflen, hostent** result, int* h_errnop);
 int gethostbyname2_r(in char* name, int af, hostent* ret, void* buf, size_t buflen, hostent** result, int* h_errnop);
-hostent* gethostbyaddr(void* addr, int len, int type);
 
 enum: int
 {
@@ -128,4 +91,22 @@ enum: uint
     INADDR_LOOPBACK =   0x7F000001,
     INADDR_BROADCAST =  0xFFFFFFFF,
     INADDR_NONE =       0xFFFFFFFF,
+}
+
+enum: int
+{
+    TCP_NODELAY =        1,     // Don't delay send to coalesce packets
+    TCP_MAXSEG =         2,     // Set maximum segment size
+    TCP_CORK =           3,     // Control sending of partial frames
+    TCP_KEEPIDLE =       4,     // Start keeplives after this period
+    TCP_KEEPINTVL =      5,     // Interval between keepalives
+    TCP_KEEPCNT =        6,     // Number of keepalives before death
+    TCP_SYNCNT =         7,     // Number of SYN retransmits
+    TCP_LINGER2 =        8,     // Life time of orphaned FIN-WAIT-2 state
+    TCP_DEFER_ACCEPT =   9,     // Wake up listener only when data arrive
+    TCP_WINDOW_CLAMP =  10,     // Bound advertised window
+    TCP_INFO =          11,     // Information about this connection.
+    TCP_QUICKACK =      12,     // Bock/reenable quick ACKs.
+    TCP_CONGESTION =    13,     // Congestion control algorithm.
+    TCP_MD5SIG =        14,     // TCP MD5 Signature (RFC2385)
 }

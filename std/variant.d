@@ -330,6 +330,11 @@ private:
                     // type doesn't support ordering comparisons
                     return int.min;
                 }
+            } else if (rhsType == typeid(void))
+            {
+                // No support for ordering comparisons with
+                // uninitialized vars
+                return int.min;
             }
             VariantN temp;
             // Do I convert to rhs?
@@ -668,7 +673,7 @@ public:
         };
         auto p = *cast(T**) &store;
         Buf buf = { typeid(T) };
-        if (fptr(OpID.get, cast(typeof(&store)) &store, &buf))
+        if (fptr(OpID.get, cast(ubyte[size]*) &store, &buf))
         {
             throw new VariantException(type, typeid(T));
         }

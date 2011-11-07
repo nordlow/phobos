@@ -124,6 +124,7 @@ Distributed under the Boost Software License, Version 1.0.
 module std.xml;
 
 import std.array;
+import std.ascii;
 import std.string;
 import std.encoding;
 
@@ -436,7 +437,7 @@ string decode(string s, DecodeMode mode=DecodeMode.LOOSE)
     if (mode == DecodeMode.NONE) return s;
 
     char[] buffer;
-    foreach (i; 0 .. s.length)
+    foreach (ref i; 0 .. s.length)
     {
         char c = s[i];
         if (c != '&')
@@ -615,7 +616,7 @@ class Document : Element
                 ((prolog != doc.prolog            )
                     ? ( prolog < doc.prolog             ? -1 : 1 ) :
                 ((super  != cast(const Element)doc)
-                    ? ( super  < cast(const Element)doc ? -1 : 1 ) :
+                    ? ( cast()super  < cast(const Element)doc ? -1 : 1 ) :
                 ((epilog != doc.epilog            )
                     ? ( epilog < doc.epilog             ? -1 : 1 ) :
             0 )));
@@ -629,7 +630,7 @@ class Document : Element
          */
         override hash_t toHash()
         {
-            return hash(prolog,hash(epilog,super.toHash));
+            return hash(prolog, hash(epilog, (cast()super).toHash()));
         }
 
         /**
@@ -920,7 +921,7 @@ class Element : Item
                 string[] b = item.pretty(indent);
                 foreach(s;b)
                 {
-                    a ~= rjustify(s,s.length + indent);
+                    a ~= rightJustify(s,s.length + indent);
                 }
             }
             a ~= tag.toEndString;
