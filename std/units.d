@@ -1475,7 +1475,9 @@ struct ScaledUnit(BaseUnit, alias toBaseFactor, string name,
 
     static string toString(UnitString type = UnitString.name) {
         switch (type) {
-            case UnitString.symbol: if (symbol) return symbol;
+            case UnitString.symbol:
+              if (symbol) return symbol;
+              else goto default;
             default: return name;
         }
     }
