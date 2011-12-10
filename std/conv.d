@@ -937,7 +937,7 @@ T toImpl(T, S)(S s, in T nullstr)
 
     if (!s)
         return nullstr;
-    return to!T(s.toString);
+    return to!T(s.toString());
 }
 
 unittest
@@ -1052,7 +1052,7 @@ unittest
 }
 
 /// ditto
-T toImpl(T, S)(S s, in T left = to!T(S.stringof~"("), in T right = ")")
+deprecated T toImpl(T, S)(S s, in T left = to!T(S.stringof~"("), in T right = ")")
     if (is(S == typedef) &&
         isSomeString!T)
 {
@@ -1061,21 +1061,6 @@ T toImpl(T, S)(S s, in T left = to!T(S.stringof~"("), in T right = ")")
         // typedef
         return left ~ to!T(cast(Original) s) ~ right;
     }
-}
-
-version(none) unittest
-{
-    debug(conv) scope(success) writeln("unittest @", __FILE__, ":", __LINE__, " succeeded.");
-    typedef double Km;
-    Km km = 42;
-    assert(to!string(km) == "Km(42)");
-}
-
-unittest
-{
-    typedef int X;
-    X x = 42;
-    assert(to!dstring(x) == "X(42)");
 }
 
 /// ditto
@@ -1522,7 +1507,7 @@ unittest
         {
             foreach (Floating; AllFloats)
             {
-                testFloatingToIntegral!(Floating, Integral);
+                testFloatingToIntegral!(Floating, Integral)();
             }
         }
     }
@@ -1532,7 +1517,7 @@ unittest
         {
             foreach (Floating; AllFloats)
             {
-                testIntegralToFloating!(Integral, Floating);
+                testIntegralToFloating!(Integral, Floating)();
             }
         }
     }
@@ -2148,10 +2133,10 @@ Target parse(Target, Source)(ref Source p)
         p.popFront();
         enforce(!p.empty, bailOut());
         if (std.ascii.toLower(p.front) == 'n' &&
-                (p.popFront(), enforce(!p.empty, bailOut()), std.ascii.toLower(p.front) == 'f') &&
-                (p.popFront(), p.empty))
+                (p.popFront(), enforce(!p.empty, bailOut()), std.ascii.toLower(p.front) == 'f'))
         {
             // 'inf'
+            p.popFront();
             return sign ? -Target.infinity : Target.infinity;
         }
         goto default;
@@ -2572,6 +2557,12 @@ unittest
     assertThrown!ConvException(to!real("in"));
 }
 
+// Unittest for bug 7055
+unittest
+{
+    assertThrown!ConvException(to!float("INF2"));
+}
+
 /**
 Parsing one character off a string returns the character and bumps the
 string up one position.
@@ -2670,7 +2661,7 @@ unittest
 }
 
 // Parsing typedefs forwards to their host types
-Target parse(Target, Source)(ref Source s)
+deprecated Target parse(Target, Source)(ref Source s)
     if (isSomeString!Source &&
         is(Target == typedef))
 {
@@ -2713,15 +2704,6 @@ Target parse(Target, Source)(ref Source s, dchar lbracket = '[', dchar rbracket 
     parseCheck!s(rbracket);
 
     return result;
-}
-
-version(none) unittest
-{
-    debug(conv) scope(success) writeln("unittest @", __FILE__, ":", __LINE__, " succeeded.");
-    typedef uint Testing;
-    auto s = "123";
-    auto t = parse!Testing(s);
-    assert(t == cast(Testing) 123);
 }
 
 unittest
@@ -3067,28 +3049,28 @@ enum y = octal!160;
 auto z = octal!"1_000_000u";
 ----
  */
-int octal(string num)()
+@property int octal(string num)()
     if((octalFitsInInt!(num) && !literalIsLong!(num)) && !literalIsUnsigned!(num))
 {
     return octal!(int, num);
 }
 
 /// Ditto
-long octal(string num)()
+@property long octal(string num)()
     if((!octalFitsInInt!(num) || literalIsLong!(num)) && !literalIsUnsigned!(num))
 {
     return octal!(long, num);
 }
 
 /// Ditto
-uint octal(string num)()
+@property uint octal(string num)()
     if((octalFitsInInt!(num) && !literalIsLong!(num)) && literalIsUnsigned!(num))
 {
     return octal!(int, num);
 }
 
 /// Ditto
-ulong octal(string num)()
+@property ulong octal(string num)()
     if((!octalFitsInInt!(num) || literalIsLong!(num)) && literalIsUnsigned!(num))
 {
     return octal!(long, num);
@@ -3111,7 +3093,7 @@ template octal(alias s)
 
     assert(a == 8);
 */
-T octal(T, string num)()
+@property T octal(T, string num)()
     if (isOctalLiteral!num)
 {
     ulong pow = 1;
@@ -3382,14 +3364,15 @@ Returns: A pointer to the newly constructed object.
  */
 T emplace(T, Args...)(void[] chunk, Args args) if (is(T == class))
 {
-    enforce(chunk.length >= __traits(classInstanceSize, T),
+    enum classSize = __traits(classInstanceSize, T);
+    enforce(chunk.length >= classSize,
            new ConvException("emplace: chunk size too small"));
     auto a = cast(size_t) chunk.ptr;
     enforce(a % T.alignof == 0, text(a, " vs. ", T.alignof));
     auto result = cast(typeof(return)) chunk.ptr;
 
     // Initialize the object in its pre-ctor state
-    (cast(byte[]) chunk)[] = typeid(T).init[];
+    (cast(byte[]) chunk)[0 .. classSize] = typeid(T).init[];
 
     // Call the ctor if any
     static if (is(typeof(result.__ctor(args))))
@@ -3481,10 +3464,20 @@ unittest
             x = y = z;
         }
     }
-    static byte[__traits(classInstanceSize, A)] buf;
-    auto a = emplace!A(cast(void[]) buf, 55);
+    void[] buf;
+
+    static byte[__traits(classInstanceSize, A)] sbuf;
+    buf = sbuf[];
+    auto a = emplace!A(buf, 55);
     assert(a.x == 55 && a.y == 55);
-    static assert(!is(typeof(emplace!A(cast(void[]) buf))));
+
+    // emplace in bigger buffer
+    buf = new byte[](__traits(classInstanceSize, A) + 10);
+    a = emplace!A(buf, 55);
+    assert(a.x == 55 && a.y == 55);
+
+    // need ctor args
+    static assert(!is(typeof(emplace!A(buf))));
 }
 
 unittest

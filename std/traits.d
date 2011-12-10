@@ -390,7 +390,7 @@ unittest
     static assert(functionAttributes!(Test2.pure_const) == FA.pure_);
     static assert(functionAttributes!(Test2.pure_sharedconst) == FA.pure_);
 
-    static assert(functionAttributes!((int a) {}) == FA.none);
+    static assert(functionAttributes!((int a) {}) == (FA.safe | FA.pure_ | FA.nothrow_));
 }
 
 
@@ -1363,8 +1363,20 @@ immutable or shared.) $(LI a delegate that is not shared.))
 
 template hasUnsharedAliasing(T...)
 {
-    enum hasUnsharedAliasing = hasRawUnsharedAliasing!(T) ||
-        anySatisfy!(unsharedDelegate, T) || hasUnsharedObjects!(T);
+    static if (!T.length)
+    {
+        enum hasUnsharedAliasing = false;
+    }
+    else static if (T.length == 1)
+    {
+        enum hasUnsharedAliasing = hasRawUnsharedAliasing!(T[0]) ||
+            anySatisfy!(unsharedDelegate, T[0]) || hasUnsharedObjects!(T[0]);
+    }
+    else
+    {
+        enum hasUnsharedAliasing = hasUnsharedAliasing!(T[0]) ||
+            hasUnsharedAliasing!(T[1..$]);
+    }
 }
 
 // Specialization to special-case std.typecons.Rebindable.
@@ -1408,6 +1420,14 @@ unittest
     static assert(!hasUnsharedAliasing!(Rebindable!(immutable Object)));
     static assert(!hasUnsharedAliasing!(Rebindable!(shared Object)));
     static assert(hasUnsharedAliasing!(Rebindable!(Object)));
+    
+    /* Issue 6979 */
+    static assert(!hasUnsharedAliasing!(int, shared(int)*));
+    static assert(hasUnsharedAliasing!(int, int*));
+    static assert(hasUnsharedAliasing!(int, const(int)[]));
+    static assert(hasUnsharedAliasing!(int, shared(int)*, Rebindable!(Object)));
+    static assert(!hasUnsharedAliasing!(shared(int)*, Rebindable!(shared Object)));
+    static assert(!hasUnsharedAliasing!());
 }
 
 /**
@@ -1527,12 +1547,12 @@ unittest
 }
 
 /**
-   Yields $(D true) if and only if $(D T) is a $(D struct) or a $(D
-   class) that defines a symbol called $(D name).
+   Yields $(D true) if and only if $(D T) is an aggregate that defines
+   a symbol called $(D name).
  */
 template hasMember(T, string name)
 {
-    static if (is(T == struct) || is(T == class))
+    static if (is(T == struct) || is(T == class) || is(T == union) || is(T == interface))
     {
         enum bool hasMember =
             staticIndexOf!(name, __traits(allMembers, T)) != -1;
@@ -1555,6 +1575,10 @@ unittest
     static assert(hasMember!(C1, "blah"));
     struct C2 { int blah(); }
     static assert(hasMember!(C2, "blah"));
+
+    // 6973
+    import std.range;
+    static assert(isOutputRange!(OutputRange!int, int));
 }
 
 
@@ -2849,7 +2873,7 @@ unittest {
 
     struct Range
     {
-        uint front() { assert(0); }
+        @property uint front() { assert(0); }
         void popFront() { assert(0); }
         enum bool empty = false;
     }
@@ -3493,7 +3517,7 @@ unittest
     static assert(mangledName!(removeDummyEnvelope) ==
             "_D3std6traits19removeDummyEnvelopeFAyaZAya");
     int x;
-    static assert(mangledName!((int a) { return a+x; })[$ - 5 .. $] == "MFiZi");
+    static assert(mangledName!((int a) { return a+x; })[$ - 9 .. $] == "MFNbNfiZi");    // nothrow safe
 }
 
 
