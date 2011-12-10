@@ -160,7 +160,7 @@ STD_MODULES = $(addprefix std/, algorithm array ascii base64 bigint		\
         encoding exception file format functional getopt gregorian		\
         json loader math mathspecial md5 metastrings mmfile numeric		\
         outbuffer parallelism path perf process random range regex		\
-        regexp signals socket socketstream stdint stdio stdiobase		\
+        regexp si signals socket socketstream stdint stdio stdiobase	\
         stream string syserror system traits typecons typetuple uni		\
         units uri utf variant xml zip zlib)
 
