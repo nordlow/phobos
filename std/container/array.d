@@ -218,12 +218,12 @@ Comparison for equality.
 /**
 Defines the container's primary range, which is a random-access range.
      */
-    static struct Range
+    static struct Range(A)
     {
-        private Array _outer;
+        private A _outer;
         private size_t _a, _b;
 
-        inout private this(inout ref Array data, size_t a, size_t b)
+        private this(ref A data, size_t a, size_t b)
         {
             _outer = data;
             _a = a;
@@ -288,18 +288,18 @@ Defines the container's primary range, which is a random-access range.
             return move(_outer._data._payload[_a + i]);
         }
 
-        ref inout(T) opIndex(size_t i) inout
+        auto ref opIndex(size_t i)
         {
             version (assert) if (_a + i >= _b) throw new RangeError();
             return _outer[_a + i];
         }
 
-        inout(typeof(this)) opSlice() inout
+        Range!A opSlice()
         {
             return typeof(this)(_outer, _a, _b);
         }
 
-        inout(typeof(this)) opSlice(size_t i, size_t j) inout
+        Range!A opSlice(size_t i, size_t j)
         {
             version (assert) if (i > j || _a + j > _b) throw new RangeError();
             return typeof(this)(_outer, _a + i, _a + j);
@@ -427,9 +427,9 @@ forward order.
 
 Complexity: $(BIGOH 1)
      */
-    Range opSlice() inout
+    Range!(inout(Array)) opSlice() inout
     {
-        return inout(Range)(this, 0, length);
+        return typeof(return)(this, 0, length);
     }
 
 /**
@@ -439,11 +439,11 @@ index $(D a) up to (excluding) index $(D b).
 Precondition: $(D a <= b && b <= length)
 
 Complexity: $(BIGOH 1)
-     */
-    Range opSlice(size_t i, size_t j) inout
+*/
+    Range!(inout(Array)) opSlice(size_t i, size_t j) inout
     {
         version (assert) if (i > j || j > length) throw new RangeError();
-        return inout(Range)(this, i, j);
+        return typeof(return)(this, i, j);
     }
 
 /**
@@ -695,7 +695,7 @@ Returns: The number of values inserted.
 
 Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
      */
-    size_t insertBefore(Stuff)(Range r, Stuff stuff)
+    size_t insertBefore(Stuff)(Range!Array r, Stuff stuff)
     if (isImplicitlyConvertible!(Stuff, T))
     {
         enforce(r._outer._data is _data && r._a <= length);
@@ -711,7 +711,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t insertBefore(Stuff)(Range r, Stuff stuff)
+    size_t insertBefore(Stuff)(Range!Array r, Stuff stuff)
     if (isInputRange!Stuff && isImplicitlyConvertible!(ElementType!Stuff, T))
     {
         enforce(r._outer._data is _data && r._a <= length);
@@ -749,7 +749,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t insertAfter(Stuff)(Range r, Stuff stuff)
+    size_t insertAfter(Stuff)(Range!Array r, Stuff stuff)
     {
         enforce(r._outer._data is _data);
         // TODO: optimize
@@ -762,7 +762,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t replace(Stuff)(Range r, Stuff stuff)
+    size_t replace(Stuff)(Range!Array r, Stuff stuff)
     if (isInputRange!Stuff && isImplicitlyConvertible!(ElementType!Stuff, T))
     {
         enforce(r._outer._data is _data);
@@ -784,7 +784,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t replace(Stuff)(Range r, Stuff stuff)
+    size_t replace(Stuff)(Range!Array r, Stuff stuff)
     if (isImplicitlyConvertible!(Stuff, T))
     {
         enforce(r._outer._data is _data);
@@ -813,7 +813,7 @@ initially were right after $(D r).
 Complexity: $(BIGOH n - m), where $(D m) is the number of elements in
 $(D r)
      */
-    Range linearRemove(Range r)
+    Range!Array linearRemove(Range!Array r)
     {
         enforce(r._outer._data is _data);
         enforce(_data.refCountedStore.isInitialized);
