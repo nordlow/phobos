@@ -288,18 +288,18 @@ Defines the container's primary range, which is a random-access range.
             return move(_outer._data._payload[_a + i]);
         }
 
-        auto ref opIndex(size_t i)
+        ref inout(T) opIndex(size_t i) inout
         {
             version (assert) if (_a + i >= _b) throw new RangeError();
             return _outer[_a + i];
         }
 
-        Range!A opSlice()
+        Range!(inout(A)) opSlice() inout
         {
             return typeof(this)(_outer, _a, _b);
         }
 
-        Range!A opSlice(size_t i, size_t j)
+        Range!(inout(A)) opSlice(size_t i, size_t j) inout
         {
             version (assert) if (i > j || _a + j > _b) throw new RangeError();
             return typeof(this)(_outer, _a + i, _a + j);
