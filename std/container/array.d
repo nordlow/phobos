@@ -294,12 +294,21 @@ Defines the container's primary range, which is a random-access range.
             return _outer[_a + i];
         }
 
-        Range!(inout(A)) opSlice() inout
+        Range!(const(A)) opSlice() const
+        {
+            return typeof(this)(_outer, _a, _b);
+        }
+        Range!A opSlice()
         {
             return typeof(this)(_outer, _a, _b);
         }
 
-        Range!(inout(A)) opSlice(size_t i, size_t j) inout
+        Range!(const(A)) opSlice(size_t i, size_t j) const
+        {
+            version (assert) if (i > j || _a + j > _b) throw new RangeError();
+            return typeof(this)(_outer, _a + i, _a + j);
+        }
+        Range!A opSlice(size_t i, size_t j)
         {
             version (assert) if (i > j || _a + j > _b) throw new RangeError();
             return typeof(this)(_outer, _a + i, _a + j);
@@ -427,7 +436,11 @@ forward order.
 
 Complexity: $(BIGOH 1)
      */
-    Range!(inout(Array)) opSlice() inout
+    Range!(const(Array)) opSlice() const
+    {
+        return typeof(return)(this, 0, length);
+    }
+    Range!Array opSlice()
     {
         return typeof(return)(this, 0, length);
     }
@@ -440,7 +453,12 @@ Precondition: $(D a <= b && b <= length)
 
 Complexity: $(BIGOH 1)
 */
-    Range!(inout(Array)) opSlice(size_t i, size_t j) inout
+    Range!(const(Array)) opSlice(size_t i, size_t j) const
+    {
+        version (assert) if (i > j || j > length) throw new RangeError();
+        return typeof(return)(this, i, j);
+    }
+    Range!Array opSlice(size_t i, size_t j)
     {
         version (assert) if (i > j || j > length) throw new RangeError();
         return typeof(return)(this, i, j);
