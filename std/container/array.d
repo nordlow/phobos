@@ -252,7 +252,13 @@ Defines the container's primary range, which is a random-access range.
      */
     static struct Range(A)
     {
-        private A _outer;
+        /* Workaround for DMD compiler bug.
+           For detail see: http://forum.dlang.org/thread/vbmwhzvawhnkoxrhbnyb@forum.dlang.org?page=1
+        */
+        private A[1] _outer_;
+        private @property ref const(A) _outer() const { return _outer_[0]; }
+        private @property ref A _outer() { return _outer_[0]; }
+
         private size_t _a, _b;
 
         private this(ref Array data, size_t a, size_t b)
@@ -280,14 +286,30 @@ Defines the container's primary range, which is a random-access range.
 
         @property ref T front()
         {
-            version (assert) if (empty) throw new RangeError();
-            return _outer[_a];
+            @property ref T front()
+            {
+                version (assert) if (empty) throw new RangeError();
+                return _outer[_a];
+            }
+            @property ref T back()
+            {
+                version (assert) if (empty) throw new RangeError();
+                return _outer[_b - 1];
+            }
         }
 
         @property ref T back()
         {
-            version (assert) if (empty) throw new RangeError();
-            return _outer[_b - 1];
+            @property ref const(T) front() const
+            {
+                version (assert) if (empty) throw new RangeError();
+                return _outer[_a];
+            }
+            @property ref const(T) back() const
+            {
+                version (assert) if (empty) throw new RangeError();
+                return _outer[_b - 1];
+            }
         }
 
         void popFront() @safe pure nothrow
