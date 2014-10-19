@@ -231,7 +231,7 @@ Defines the container's primary range, which is a random-access range.
 
         private this(ref Array data, size_t a, size_t b)
         {
-            _outer = data;
+            _outer_ = data;
             _a = a;
             _b = b;
         }
@@ -323,8 +323,15 @@ Defines the container's primary range, which is a random-access range.
 
         typeof(this) opSlice(size_t i, size_t j)
         {
-            version (assert) if (i > j || _a + j > _b) throw new RangeError();
-            return typeof(this)(_outer, _a + i, _a + j);
+            Range!(const(A)) opSlice() const
+            {
+                return typeof(return)(_outer, _a, _b);
+            }
+            Range!(const(A)) opSlice(size_t i, size_t j) const
+            {
+                version (assert) if (i > j || _a + j > _b) throw new RangeError();
+                return typeof(return)(_outer, _a + i, _a + j);
+            }
         }
 
         void opSliceAssign(T value)
