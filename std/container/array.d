@@ -291,19 +291,19 @@ Defines the container's primary range, which is a random-access range.
             --_b;
         }
 
-        T moveFront()
+        static if (isMutable!A) T moveFront()
         {
             version (assert) if (empty || _a >= _outer.length) throw new RangeError();
             return move(_outer._data._payload[_a]);
         }
 
-        T moveBack()
+        static if (isMutable!A) T moveBack()
         {
             version (assert) if (empty || _b  > _outer.length) throw new RangeError();
             return move(_outer._data._payload[_b - 1]);
         }
 
-        T moveAt(size_t i)
+        static if (isMutable!A) T moveAt(size_t i)
         {
             version (assert) if (_a + i >= _b || _a + i >= _outer.length) throw new RangeError();
             return move(_outer._data._payload[_a + i]);
@@ -314,13 +314,13 @@ Defines the container's primary range, which is a random-access range.
             version (assert) if (_a + i >= _b) throw new RangeError();
             return _outer[_a + i];
         }
-        ref T opIndex(size_t i)
+        static if (isMutable!A) ref T opIndex(size_t i)
         {
             version (assert) if (_a + i >= _b) throw new RangeError();
             return _outer[_a + i];
         }
 
-        static if (isMutable!T)
+        static if (isMutable!A)
         {
             Range!(A) opSlice()
             {
@@ -332,52 +332,49 @@ Defines the container's primary range, which is a random-access range.
                 return typeof(return)(_outer, _a + i, _a + j);
             }
         }
-        else
+        Range!(const(A)) opSlice() const
         {
-            Range!(const(A)) opSlice() const
-            {
-                return typeof(return)(_outer, _a, _b);
-            }
-            Range!(const(A)) opSlice(size_t i, size_t j) const
-            {
-                version (assert) if (i > j || _a + j > _b) throw new RangeError();
-                return typeof(return)(_outer, _a + i, _a + j);
-            }
+            return typeof(return)(_outer, _a, _b);
+        }
+        Range!(const(A)) opSlice(size_t i, size_t j) const
+        {
+            version (assert) if (i > j || _a + j > _b) throw new RangeError();
+            return typeof(return)(_outer, _a + i, _a + j);
         }
 
-        void opSliceAssign(T value)
+        static if (isMutable!A) void opSliceAssign(T value)
         {
             version (assert) if (_b > _outer.length) throw new RangeError();
             _outer[_a .. _b] = value;
         }
 
-        void opSliceAssign(T value, size_t i, size_t j)
+        static if (isMutable!A) void opSliceAssign(T value, size_t i, size_t j)
         {
             version (assert) if (_a + j > _b) throw new RangeError();
             _outer[_a + i .. _a + j] = value;
         }
 
-        void opSliceUnary(string op)()
+        static if (isMutable!A) void opSliceUnary(string op)()
             if(op == "++" || op == "--")
         {
             version (assert) if (_b > _outer.length) throw new RangeError();
             mixin(op~"_outer[_a .. _b];");
         }
 
-        void opSliceUnary(string op)(size_t i, size_t j)
+        static if (isMutable!A) void opSliceUnary(string op)(size_t i, size_t j)
             if(op == "++" || op == "--")
         {
             version (assert) if (_a + j > _b) throw new RangeError();
             mixin(op~"_outer[_a + i .. _a + j];");
         }
 
-        void opSliceOpAssign(string op)(T value)
+        static if (isMutable!A) void opSliceOpAssign(string op)(T value)
         {
             version (assert) if (_b > _outer.length) throw new RangeError();
             mixin("_outer[_a .. _b] "~op~"= value;");
         }
 
-        void opSliceOpAssign(string op)(T value, size_t i, size_t j)
+        static if (isMutable!A) void opSliceOpAssign(string op)(T value, size_t i, size_t j)
         {
             version (assert) if (_a + j > _b) throw new RangeError();
             mixin("_outer[_a + i .. _a + j] "~op~"= value;");
@@ -467,19 +464,13 @@ forward order.
 
 Complexity: $(BIGOH 1)
      */
-    static if (isMutable!T)
+    Range!(Array!T) opSlice()
     {
-        Range!(Array!T) opSlice()
-        {
-            return typeof(return)(this, 0, length);
-        }
+        return typeof(return)(this, 0, length);
     }
-    else
+    Range!(const(Array!T)) opSlice() const
     {
-        Range!(const(Array!T)) opSlice() const
-        {
-            return typeof(return)(this, 0, length);
-        }
+        return typeof(return)(this, 0, length);
     }
 
 /**
@@ -490,21 +481,15 @@ Precondition: $(D a <= b && b <= length)
 
 Complexity: $(BIGOH 1)
 */
-    static if (isMutable!T)
+    Range!(Array!T) opSlice(size_t i, size_t j)
     {
-        Range!(Array!T) opSlice(size_t i, size_t j)
-        {
-            version (assert) if (i > j || j > length) throw new RangeError();
-            return typeof(return)(this, i, j);
-        }
+        version (assert) if (i > j || j > length) throw new RangeError();
+        return typeof(return)(this, i, j);
     }
-    else
+    Range!(const(Array!T)) opSlice(size_t i, size_t j) const
     {
-        Range!(const(Array!T)) opSlice(size_t i, size_t j) const
-        {
-            version (assert) if (i > j || j > length) throw new RangeError();
-            return typeof(return)(this, i, j);
-        }
+        version (assert) if (i > j || j > length) throw new RangeError();
+        return typeof(return)(this, i, j);
     }
 
 /**
