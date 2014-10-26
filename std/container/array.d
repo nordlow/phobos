@@ -6,10 +6,12 @@ import core.exception, core.memory, core.stdc.stdlib, core.stdc.string,
 public import std.container.util;
 version(unittest) import std.stdio;
 
+alias Range(T) = RangeT!(Array!T);
+
 /**
    Defines the container's primary range, which is a random-access range.
 */
-private static struct Range(A)
+private static struct RangeT(A)
 {
     alias T = ElementType!A;
 
@@ -28,7 +30,7 @@ private static struct Range(A)
         _b = b;
     }
 
-    @property Range save()
+    @property RangeT save()
     {
         return this;
     }
@@ -96,94 +98,104 @@ private static struct Range(A)
         --_b;
     }
 
-    static if (isMutable!A) T moveFront()
+    static if (isMutable!A)
+    {
+        T moveFront()
         {
             version (assert) if (empty || _a >= _outer.length) throw new RangeError();
             return move(_outer._data._payload[_a]);
         }
 
-    static if (isMutable!A) T moveBack()
+        T moveBack()
         {
             version (assert) if (empty || _b  > _outer.length) throw new RangeError();
             return move(_outer._data._payload[_b - 1]);
         }
 
-    static if (isMutable!A) T moveAt(size_t i)
+        T moveAt(size_t i)
         {
             version (assert) if (_a + i >= _b || _a + i >= _outer.length) throw new RangeError();
             return move(_outer._data._payload[_a + i]);
         }
+    }
 
     ref const(T) opIndex(size_t i) const
     {
         version (assert) if (_a + i >= _b) throw new RangeError();
         return _outer[_a + i];
     }
-    static if (isMutable!A) ref T opIndex(size_t i)
+
+    static if (isMutable!A)
+    {
+        ref T opIndex(size_t i)
         {
             version (assert) if (_a + i >= _b) throw new RangeError();
             return _outer[_a + i];
         }
 
-    static if (isMutable!A)
-    {
-        Range!(A) opSlice()
+        RangeT!(A) opSlice()
         {
             return typeof(return)(_outer, _a, _b);
         }
-        Range!(A) opSlice(size_t i, size_t j)
+
+        RangeT!(A) opSlice(size_t i, size_t j)
         {
             version (assert) if (i > j || _a + j > _b) throw new RangeError();
             return typeof(return)(_outer, _a + i, _a + j);
         }
     }
-    Range!(const(A)) opSlice() const
+
+    RangeT!(const(A)) opSlice() const
     {
         return typeof(return)(_outer, _a, _b);
     }
-    Range!(const(A)) opSlice(size_t i, size_t j) const
+
+    RangeT!(const(A)) opSlice(size_t i, size_t j) const
     {
         version (assert) if (i > j || _a + j > _b) throw new RangeError();
         return typeof(return)(_outer, _a + i, _a + j);
     }
 
-    static if (isMutable!A) void opSliceAssign(T value)
+    static if (isMutable!A)
+    {
+        void opSliceAssign(T value)
         {
             version (assert) if (_b > _outer.length) throw new RangeError();
             _outer[_a .. _b] = value;
         }
 
-    static if (isMutable!A) void opSliceAssign(T value, size_t i, size_t j)
+        void opSliceAssign(T value, size_t i, size_t j)
         {
             version (assert) if (_a + j > _b) throw new RangeError();
             _outer[_a + i .. _a + j] = value;
         }
 
-    static if (isMutable!A) void opSliceUnary(string op)()
-                            if (op == "++" || op == "--")
-                            {
-                                version (assert) if (_b > _outer.length) throw new RangeError();
-                                mixin(op~"_outer[_a .. _b];");
-                            }
+        void opSliceUnary(string op)()
+            if (op == "++" || op == "--")
+        {
+            version (assert) if (_b > _outer.length) throw new RangeError();
+            mixin(op~"_outer[_a .. _b];");
+        }
 
-    static if (isMutable!A) void opSliceUnary(string op)(size_t i, size_t j)
-                            if (op == "++" || op == "--")
-                            {
-                                version (assert) if (_a + j > _b) throw new RangeError();
-                                mixin(op~"_outer[_a + i .. _a + j];");
-                            }
+        void opSliceUnary(string op)(size_t i, size_t j)
+            if (op == "++" || op == "--")
+        {
+            version (assert) if (_a + j > _b) throw new RangeError();
+            mixin(op~"_outer[_a + i .. _a + j];");
+        }
 
-    static if (isMutable!A) void opSliceOpAssign(string op)(T value)
+        void opSliceOpAssign(string op)(T value)
         {
             version (assert) if (_b > _outer.length) throw new RangeError();
             mixin("_outer[_a .. _b] "~op~"= value;");
         }
 
-    static if (isMutable!A) void opSliceOpAssign(string op)(T value, size_t i, size_t j)
+        void opSliceOpAssign(string op)(T value, size_t i, size_t j)
         {
             version (assert) if (_a + j > _b) throw new RangeError();
             mixin("_outer[_a + i .. _a + j] "~op~"= value;");
         }
+    }
 }
 
 /**
@@ -478,11 +490,11 @@ forward order.
 
 Complexity: $(BIGOH 1)
      */
-    Range!(Array!T) opSlice()
+    RangeT!(Array!T) opSlice()
     {
         return typeof(return)(this, 0, length);
     }
-    Range!(const(Array!T)) opSlice() const
+    RangeT!(const(Array!T)) opSlice() const
     {
         return typeof(return)(this, 0, length);
     }
@@ -495,12 +507,12 @@ Precondition: $(D a <= b && b <= length)
 
 Complexity: $(BIGOH 1)
 */
-    Range!(Array!T) opSlice(size_t i, size_t j)
+    RangeT!(Array!T) opSlice(size_t i, size_t j)
     {
         version (assert) if (i > j || j > length) throw new RangeError();
         return typeof(return)(this, i, j);
     }
-    Range!(const(Array!T)) opSlice(size_t i, size_t j) const
+    RangeT!(const(Array!T)) opSlice(size_t i, size_t j) const
     {
         version (assert) if (i > j || j > length) throw new RangeError();
         return typeof(return)(this, i, j);
@@ -755,7 +767,7 @@ Returns: The number of values inserted.
 
 Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
      */
-    size_t insertBefore(Stuff)(Range!Array r, Stuff stuff)
+    size_t insertBefore(Stuff)(RangeT!Array r, Stuff stuff)
     if (isImplicitlyConvertible!(Stuff, T))
     {
         enforce(r._outer._data is _data && r._a <= length);
@@ -771,7 +783,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t insertBefore(Stuff)(Range!Array r, Stuff stuff)
+    size_t insertBefore(Stuff)(RangeT!Array r, Stuff stuff)
     if (isInputRange!Stuff && isImplicitlyConvertible!(ElementType!Stuff, T))
     {
         enforce(r._outer._data is _data && r._a <= length);
@@ -809,7 +821,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t insertAfter(Stuff)(Range!Array r, Stuff stuff)
+    size_t insertAfter(Stuff)(RangeT!Array r, Stuff stuff)
     {
         enforce(r._outer._data is _data);
         // TODO: optimize
@@ -822,7 +834,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t replace(Stuff)(Range!Array r, Stuff stuff)
+    size_t replace(Stuff)(RangeT!Array r, Stuff stuff)
     if (isInputRange!Stuff && isImplicitlyConvertible!(ElementType!Stuff, T))
     {
         enforce(r._outer._data is _data);
@@ -844,7 +856,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t replace(Stuff)(Range!Array r, Stuff stuff)
+    size_t replace(Stuff)(RangeT!Array r, Stuff stuff)
     if (isImplicitlyConvertible!(Stuff, T))
     {
         enforce(r._outer._data is _data);
@@ -873,7 +885,7 @@ initially were right after $(D r).
 Complexity: $(BIGOH n - m), where $(D m) is the number of elements in
 $(D r)
      */
-    Range!Array linearRemove(Range!Array r)
+    RangeT!Array linearRemove(RangeT!Array r)
     {
         enforce(r._outer._data is _data);
         enforce(_data.refCountedStore.isInitialized);
@@ -997,7 +1009,7 @@ unittest
     assert(a == Array!int(0, 1, 2, 3, 6, 7, 8));
 }
 
-// Give the Range object some testing.
+// Give the RangeT object some testing.
 unittest
 {
     auto a = Array!int(0, 1, 2, 3, 4, 5, 6)[];
@@ -1130,12 +1142,12 @@ unittest
     assert(~a[0] == ~2);
 
     auto r = a[];
-    r[1]  = 0; //Check Array.Range.opIndexAssign
+    r[1]  = 0; //Check Array.RangeT.opIndexAssign
     assert(r[1] == 0);
-    r[1] += 1; //Check Array.Range.opIndexOpAssign
+    r[1] += 1; //Check Array.RangeT.opIndexOpAssign
     assert(r[1] == 1);
 
-    //Check Array.Range.opIndexUnary
+    //Check Array.RangeT.opIndexUnary
     ++r[0];
     //r[0]++ //op++ doesn't return, so this shouldn't work, even with 5044 fixed
     assert(r[0] == 3);
@@ -1167,7 +1179,7 @@ unittest
     a2[0 .. 0] += 0;
 
     //Test "range-wide" operations
-    auto r = Array!int([0, 1, 2])[]; //Array.Range
+    auto r = Array!int([0, 1, 2])[]; //Array.RangeT
     r[] += 5;
     assert(r.equal([5, 6, 7]));
     ++r[];
@@ -1177,7 +1189,7 @@ unittest
     r[0 .. 2] = 0;
     assert(r.equal([0, 0, 40]));
 
-    //Test empty Range
+    //Test empty RangeT
     auto r2 = Array!int.init[];
     ++r2[];
     ++r2[0 .. 0];
@@ -1287,12 +1299,12 @@ if (is(Unqual!T == bool))
     /**
        Defines the container's primary range.
      */
-    struct Range
+    struct RangeT
     {
         private Array _outer;
         private size_t _a, _b;
-        /// Range primitives
-        @property Range save()
+        /// RangeT primitives
+        @property RangeT save()
         {
             version (bug4437)
             {
@@ -1380,10 +1392,10 @@ if (is(Unqual!T == bool))
         }
         alias opDollar = length;
         /// ditto
-        Range opSlice(size_t low, size_t high)
+        RangeT opSlice(size_t low, size_t high)
         {
             assert(_a <= low && low <= high && high <= _b);
-            return Range(_outer, _a + low, _a + high);
+            return RangeT(_outer, _a + low, _a + high);
         }
     }
 
@@ -1507,9 +1519,9 @@ if (is(Unqual!T == bool))
 
        Complexity: $(BIGOH log(n))
      */
-    Range opSlice()
+    RangeT opSlice()
     {
-        return Range(this, 0, length);
+        return RangeT(this, 0, length);
     }
 
     unittest
@@ -1525,10 +1537,10 @@ if (is(Unqual!T == bool))
 
        Complexity: $(BIGOH log(n))
      */
-    Range opSlice(size_t a, size_t b)
+    RangeT opSlice(size_t a, size_t b)
     {
         enforce(a <= b && b <= length);
-        return Range(this, a, b);
+        return RangeT(this, a, b);
     }
 
     unittest
@@ -1945,7 +1957,7 @@ if (is(Unqual!T == bool))
 
        Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
      */
-    size_t insertBefore(Stuff)(Range r, Stuff stuff)
+    size_t insertBefore(Stuff)(RangeT r, Stuff stuff)
     {
         // TODO: make this faster, it moves one bit at a time
         immutable inserted = stableInsertBack(stuff);
@@ -1972,7 +1984,7 @@ if (is(Unqual!T == bool))
     }
 
     /// ditto
-    size_t insertAfter(Stuff)(Range r, Stuff stuff)
+    size_t insertAfter(Stuff)(RangeT r, Stuff stuff)
     {
         // TODO: make this faster, it moves one bit at a time
         immutable inserted = stableInsertBack(stuff);
@@ -1994,7 +2006,7 @@ if (is(Unqual!T == bool))
         assert(a[5]);
     }
     /// ditto
-    size_t replace(Stuff)(Range r, Stuff stuff) if (is(Stuff : bool))
+    size_t replace(Stuff)(RangeT r, Stuff stuff) if (is(Stuff : bool))
     {
         if (!r.empty)
         {
@@ -2033,7 +2045,7 @@ if (is(Unqual!T == bool))
 
        Complexity: $(BIGOH n)
      */
-    Range linearRemove(Range r)
+    RangeT linearRemove(RangeT r)
     {
         copy(this[r._b .. length], this[r._a .. length]);
         length = length - r.length;
