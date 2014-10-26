@@ -17,8 +17,7 @@ private static struct Range(A)
        For detail see: http://forum.dlang.org/thread/vbmwhzvawhnkoxrhbnyb@forum.dlang.org?page=1
     */
     private A[1] _outer_;
-    private @property ref const(A) _outer() const { return _outer_[0]; }
-    private @property ref A _outer() { return _outer_[0]; }
+    private @property ref inout(A) _outer() inout { return _outer_[0]; }
 
     private size_t _a, _b;
 
