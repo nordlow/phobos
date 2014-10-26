@@ -265,6 +265,19 @@ Defines the container's primary range, which is a random-access range.
                 return _outer[_b - 1];
             }
         }
+        else static if (is(T == immutable))
+        {
+            @property ref immutable(T) front() const
+            {
+                version (assert) if (empty) throw new RangeError();
+                return _outer[_a];
+            }
+            @property ref immutable(T) back() const
+            {
+                version (assert) if (empty) throw new RangeError();
+                return _outer[_b - 1];
+            }
+        }
         else
         {
             @property ref const(T) front() const
@@ -355,14 +368,14 @@ Defines the container's primary range, which is a random-access range.
         }
 
         static if (isMutable!A) void opSliceUnary(string op)()
-            if(op == "++" || op == "--")
+            if (op == "++" || op == "--")
         {
             version (assert) if (_b > _outer.length) throw new RangeError();
             mixin(op~"_outer[_a .. _b];");
         }
 
         static if (isMutable!A) void opSliceUnary(string op)(size_t i, size_t j)
-            if(op == "++" || op == "--")
+            if (op == "++" || op == "--")
         {
             version (assert) if (_a + j > _b) throw new RangeError();
             mixin(op~"_outer[_a + i .. _a + j];");
@@ -549,15 +562,15 @@ Complexity: $(BIGOH slice.length)
 
     /// ditto
     void opSliceUnary(string op)()
-        if(op == "++" || op == "--")
+        if (op == "++" || op == "--")
     {
-        if(!_data.refCountedStore.isInitialized) return;
+        if (!_data.refCountedStore.isInitialized) return;
         mixin(op~"_data._payload[];");
     }
 
     /// ditto
     void opSliceUnary(string op)(size_t i, size_t j)
-        if(op == "++" || op == "--")
+        if (op == "++" || op == "--")
     {
         auto slice = _data.refCountedStore.isInitialized ? _data._payload : T[].init;
         mixin(op~"slice[i .. j];");
@@ -566,7 +579,7 @@ Complexity: $(BIGOH slice.length)
     /// ditto
     void opSliceOpAssign(string op)(T value)
     {
-        if(!_data.refCountedStore.isInitialized) return;
+        if (!_data.refCountedStore.isInitialized) return;
         mixin("_data._payload[] "~op~"= value;");
     }
 
