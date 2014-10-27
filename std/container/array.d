@@ -401,8 +401,11 @@ Comparison for equality.
     }
 /**
    Defines the container's primary range, which is a random-access range.
+
+   ConstRange is a variant with const elements.
 */
     alias Range = RangeT!Array;
+    alias ConstRange = RangeT!(const Array); /// ditto
 
 /**
 Duplicates the container. The elements themselves are not transitively
@@ -491,7 +494,7 @@ Complexity: $(BIGOH 1)
     {
         return typeof(return)(this, 0, length);
     }
-    RangeT!(const(Array!T)) opSlice() const
+    ConstRange opSlice() const
     {
         return typeof(return)(this, 0, length);
     }
@@ -509,7 +512,7 @@ Complexity: $(BIGOH 1)
         version (assert) if (i > j || j > length) throw new RangeError();
         return typeof(return)(this, i, j);
     }
-    RangeT!(const(Array!T)) opSlice(size_t i, size_t j) const
+    ConstRange opSlice(size_t i, size_t j) const
     {
         version (assert) if (i > j || j > length) throw new RangeError();
         return typeof(return)(this, i, j);
@@ -1270,6 +1273,7 @@ unittest //6998-2
 unittest
 {
     static assert(is(Array!int.Range));
+    static assert(is(Array!int.ConstRange));
 }
 
 
