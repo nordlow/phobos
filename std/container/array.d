@@ -215,28 +215,24 @@ Comparison for equality.
         return _data._payload == rhs._data._payload;
     }
 
-/**
-Defines the container's primary range, which is a random-access range.
-     */
-    static struct Range(A)
+    private static struct RangeT(A)
     {
         /* Workaround for DMD compiler bug.
            For detail see: http://forum.dlang.org/thread/vbmwhzvawhnkoxrhbnyb@forum.dlang.org?page=1
         */
         private A[1] _outer_;
-        private @property ref const(A) _outer() const { return _outer_[0]; }
-        private @property ref A _outer() { return _outer_[0]; }
+        private @property ref inout(A) _outer() inout { return _outer_[0]; }
 
         private size_t _a, _b;
 
-        private this(ref Array data, size_t a, size_t b)
+        private this(ref A data, size_t a, size_t b)
         {
             _outer_ = data;
             _a = a;
             _b = b;
         }
 
-        @property Range save()
+        @property RangeT save()
         {
             return this;
         }
@@ -252,7 +248,7 @@ Defines the container's primary range, which is a random-access range.
         }
         alias opDollar = length;
 
-        @property ref T front()
+        static if (isMutable!A)
         {
             @property ref T front()
             {
@@ -265,8 +261,20 @@ Defines the container's primary range, which is a random-access range.
                 return _outer[_b - 1];
             }
         }
-
-        @property ref T back()
+        else static if (is(T == immutable))
+        {
+            @property ref immutable(T) front() const
+            {
+                version (assert) if (empty) throw new RangeError();
+                return _outer[_a];
+            }
+            @property ref immutable(T) back() const
+            {
+                version (assert) if (empty) throw new RangeError();
+                return _outer[_b - 1];
+            }
+        }
+        else
         {
             @property ref const(T) front() const
             {
@@ -292,86 +300,112 @@ Defines the container's primary range, which is a random-access range.
             --_b;
         }
 
-        T moveFront()
+        static if (isMutable!A)
         {
-            version (assert) if (empty || _a >= _outer.length) throw new RangeError();
-            return move(_outer._data._payload[_a]);
+            T moveFront()
+            {
+                version (assert) if (empty || _a >= _outer.length) throw new RangeError();
+                return move(_outer._data._payload[_a]);
+            }
+
+            T moveBack()
+            {
+                version (assert) if (empty || _b  > _outer.length) throw new RangeError();
+                return move(_outer._data._payload[_b - 1]);
+            }
+
+            T moveAt(size_t i)
+            {
+                version (assert) if (_a + i >= _b || _a + i >= _outer.length) throw new RangeError();
+                return move(_outer._data._payload[_a + i]);
+            }
         }
 
-        T moveBack()
-        {
-            version (assert) if (empty || _b  > _outer.length) throw new RangeError();
-            return move(_outer._data._payload[_b - 1]);
-        }
-
-        T moveAt(size_t i)
-        {
-            version (assert) if (_a + i >= _b || _a + i >= _outer.length) throw new RangeError();
-            return move(_outer._data._payload[_a + i]);
-        }
-
-        ref T opIndex(size_t i)
+        ref const(T) opIndex(size_t i) const
         {
             version (assert) if (_a + i >= _b) throw new RangeError();
             return _outer[_a + i];
         }
 
-        typeof(this) opSlice()
+        static if (isMutable!A)
         {
-            return typeof(this)(_outer, _a, _b);
-        }
+            ref T opIndex(size_t i)
+            {
+                version (assert) if (_a + i >= _b) throw new RangeError();
+                return _outer[_a + i];
+            }
 
-        typeof(this) opSlice(size_t i, size_t j)
-        {
-            Range!(const(A)) opSlice() const
+            RangeT!(A) opSlice()
             {
                 return typeof(return)(_outer, _a, _b);
             }
-            Range!(const(A)) opSlice(size_t i, size_t j) const
+
+            RangeT!(A) opSlice(size_t i, size_t j)
             {
                 version (assert) if (i > j || _a + j > _b) throw new RangeError();
                 return typeof(return)(_outer, _a + i, _a + j);
             }
         }
 
-        void opSliceAssign(T value)
+        RangeT!(const(A)) opSlice() const
         {
-            version (assert) if (_b > _outer.length) throw new RangeError();
-            _outer[_a .. _b] = value;
+            return typeof(return)(_outer, _a, _b);
         }
 
-        void opSliceAssign(T value, size_t i, size_t j)
+        RangeT!(const(A)) opSlice(size_t i, size_t j) const
         {
-            version (assert) if (_a + j > _b) throw new RangeError();
-            _outer[_a + i .. _a + j] = value;
+            version (assert) if (i > j || _a + j > _b) throw new RangeError();
+            return typeof(return)(_outer, _a + i, _a + j);
         }
 
-        void opSliceUnary(string op)()
-            if(op == "++" || op == "--")
+        static if (isMutable!A)
         {
-            version (assert) if (_b > _outer.length) throw new RangeError();
-            mixin(op~"_outer[_a .. _b];");
-        }
+            void opSliceAssign(T value)
+            {
+                version (assert) if (_b > _outer.length) throw new RangeError();
+                _outer[_a .. _b] = value;
+            }
 
-        void opSliceUnary(string op)(size_t i, size_t j)
-            if(op == "++" || op == "--")
-        {
-            version (assert) if (_a + j > _b) throw new RangeError();
-            mixin(op~"_outer[_a + i .. _a + j];");
-        }
+            void opSliceAssign(T value, size_t i, size_t j)
+            {
+                version (assert) if (_a + j > _b) throw new RangeError();
+                _outer[_a + i .. _a + j] = value;
+            }
 
-        void opSliceOpAssign(string op)(T value)
-        {
-            version (assert) if (_b > _outer.length) throw new RangeError();
-            mixin("_outer[_a .. _b] "~op~"= value;");
-        }
+            void opSliceUnary(string op)()
+            if (op == "++" || op == "--")
+            {
+                version (assert) if (_b > _outer.length) throw new RangeError();
+                mixin(op~"_outer[_a .. _b];");
+            }
 
-        void opSliceOpAssign(string op)(T value, size_t i, size_t j)
-        {
-            version (assert) if (_a + j > _b) throw new RangeError();
-            mixin("_outer[_a + i .. _a + j] "~op~"= value;");
+            void opSliceUnary(string op)(size_t i, size_t j)
+            if (op == "++" || op == "--")
+            {
+                version (assert) if (_a + j > _b) throw new RangeError();
+                mixin(op~"_outer[_a + i .. _a + j];");
+            }
+
+            void opSliceOpAssign(string op)(T value)
+            {
+                version (assert) if (_b > _outer.length) throw new RangeError();
+                mixin("_outer[_a .. _b] "~op~"= value;");
+            }
+
+            void opSliceOpAssign(string op)(T value, size_t i, size_t j)
+            {
+                version (assert) if (_a + j > _b) throw new RangeError();
+                mixin("_outer[_a + i .. _a + j] "~op~"= value;");
+            }
         }
     }
+/**
+   Defines the container's primary range, which is a random-access range.
+
+   ConstRange is a variant with const elements.
+*/
+    alias Range = RangeT!Array;
+    alias ConstRange = RangeT!(const Array); /// ditto
 
 /**
 Duplicates the container. The elements themselves are not transitively
@@ -458,7 +492,11 @@ Complexity: $(BIGOH 1)
      */
     Range opSlice()
     {
-        return Range(this, 0, length);
+        return typeof(return)(this, 0, length);
+    }
+    ConstRange opSlice() const
+    {
+        return typeof(return)(this, 0, length);
     }
 
 /**
@@ -468,11 +506,16 @@ index $(D a) up to (excluding) index $(D b).
 Precondition: $(D a <= b && b <= length)
 
 Complexity: $(BIGOH 1)
-     */
+*/
     Range opSlice(size_t i, size_t j)
     {
         version (assert) if (i > j || j > length) throw new RangeError();
-        return Range(this, i, j);
+        return typeof(return)(this, i, j);
+    }
+    ConstRange opSlice(size_t i, size_t j) const
+    {
+        version (assert) if (i > j || j > length) throw new RangeError();
+        return typeof(return)(this, i, j);
     }
 
 /**
@@ -482,14 +525,14 @@ Precondition: $(D !empty)
 
 Complexity: $(BIGOH 1)
      */
-    @property ref T front()
+    @property ref inout(T) front() inout
     {
         version (assert) if (!_data.refCountedStore.isInitialized) throw new RangeError();
         return _data._payload[0];
     }
 
     /// ditto
-    @property ref T back()
+    @property ref inout(T) back() inout
     {
         version (assert) if (!_data.refCountedStore.isInitialized) throw new RangeError();
         return _data._payload[$ - 1];
@@ -502,7 +545,7 @@ Precondition: $(D i < length)
 
 Complexity: $(BIGOH 1)
      */
-    ref T opIndex(size_t i)
+    ref inout(T) opIndex(size_t i) inout
     {
         version (assert) if (!_data.refCountedStore.isInitialized) throw new RangeError();
         return _data._payload[i];
@@ -532,15 +575,15 @@ Complexity: $(BIGOH slice.length)
 
     /// ditto
     void opSliceUnary(string op)()
-        if(op == "++" || op == "--")
+        if (op == "++" || op == "--")
     {
-        if(!_data.refCountedStore.isInitialized) return;
+        if (!_data.refCountedStore.isInitialized) return;
         mixin(op~"_data._payload[];");
     }
 
     /// ditto
     void opSliceUnary(string op)(size_t i, size_t j)
-        if(op == "++" || op == "--")
+        if (op == "++" || op == "--")
     {
         auto slice = _data.refCountedStore.isInitialized ? _data._payload : T[].init;
         mixin(op~"slice[i .. j];");
@@ -549,7 +592,7 @@ Complexity: $(BIGOH slice.length)
     /// ditto
     void opSliceOpAssign(string op)(T value)
     {
-        if(!_data.refCountedStore.isInitialized) return;
+        if (!_data.refCountedStore.isInitialized) return;
         mixin("_data._payload[] "~op~"= value;");
     }
 
@@ -724,7 +767,7 @@ Returns: The number of values inserted.
 
 Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
      */
-    size_t insertBefore(Stuff)(Range!Array r, Stuff stuff)
+    size_t insertBefore(Stuff)(Range r, Stuff stuff)
     if (isImplicitlyConvertible!(Stuff, T))
     {
         enforce(r._outer._data is _data && r._a <= length);
@@ -740,7 +783,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t insertBefore(Stuff)(Range!Array r, Stuff stuff)
+    size_t insertBefore(Stuff)(Range r, Stuff stuff)
     if (isInputRange!Stuff && isImplicitlyConvertible!(ElementType!Stuff, T))
     {
         enforce(r._outer._data is _data && r._a <= length);
@@ -778,7 +821,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t insertAfter(Stuff)(Range!Array r, Stuff stuff)
+    size_t insertAfter(Stuff)(Range r, Stuff stuff)
     {
         enforce(r._outer._data is _data);
         // TODO: optimize
@@ -791,7 +834,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t replace(Stuff)(Range!Array r, Stuff stuff)
+    size_t replace(Stuff)(Range r, Stuff stuff)
     if (isInputRange!Stuff && isImplicitlyConvertible!(ElementType!Stuff, T))
     {
         enforce(r._outer._data is _data);
@@ -813,7 +856,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     }
 
     /// ditto
-    size_t replace(Stuff)(Range!Array r, Stuff stuff)
+    size_t replace(Stuff)(Range r, Stuff stuff)
     if (isImplicitlyConvertible!(Stuff, T))
     {
         enforce(r._outer._data is _data);
@@ -842,7 +885,7 @@ initially were right after $(D r).
 Complexity: $(BIGOH n - m), where $(D m) is the number of elements in
 $(D r)
      */
-    Range!Array linearRemove(Range!Array r)
+    Range linearRemove(Range r)
     {
         enforce(r._outer._data is _data);
         enforce(_data.refCountedStore.isInitialized);
@@ -878,6 +921,27 @@ unittest
 {
     auto a = Array!int(1, 2, 3);
     assert(a.length == 3);
+}
+
+unittest
+{
+    const Array!int a = [1, 2];
+
+    assert(a[0] == 1);
+    assert(a.front == 1);
+    assert(a.back == 2);
+
+    static assert(!__traits(compiles, { a[0] = 1; }));
+    static assert(!__traits(compiles, { a.front = 1; }));
+    static assert(!__traits(compiles, { a.back = 1; }));
+
+    auto r = a[];
+    size_t i;
+    foreach (e; r)
+    {
+        assert(e == i + 1);
+        i++;
+    }
 }
 
 unittest
@@ -1211,6 +1275,12 @@ unittest //6998-2
     a ~= c;
     a.clear;
     assert(c.i == 42); //fails
+}
+
+unittest
+{
+    static assert(is(Array!int.Range));
+    static assert(is(Array!int.ConstRange));
 }
 
 
