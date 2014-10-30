@@ -257,6 +257,10 @@ Comparison for equality.
 
         private size_t _a, _b;
 
+        /* E is different from T when A is more restrictively qualified than T:
+        immutable(Array!int) => T == int, E = immutable(int) */
+        alias E = typeof(_outer_[0]._data._payload[0]);
+
         private this(ref A data, size_t a, size_t b)
         {
             _outer_ = data;
@@ -280,44 +284,15 @@ Comparison for equality.
         }
         alias opDollar = length;
 
-        static if (isMutable!A)
+        @property ref inout(E) front() inout
         {
-            @property ref T front()
-            {
-                version (assert) if (empty) throw new RangeError();
-                return _outer[_a];
-            }
-            @property ref T back()
-            {
-                version (assert) if (empty) throw new RangeError();
-                return _outer[_b - 1];
-            }
+            version (assert) if (empty) throw new RangeError();
+            return _outer[_a];
         }
-        else static if (is(T == immutable))
+        @property ref inout(E) back() inout
         {
-            @property ref immutable(T) front() const
-            {
-                version (assert) if (empty) throw new RangeError();
-                return _outer[_a];
-            }
-            @property ref immutable(T) back() const
-            {
-                version (assert) if (empty) throw new RangeError();
-                return _outer[_b - 1];
-            }
-        }
-        else
-        {
-            @property ref const(T) front() const
-            {
-                version (assert) if (empty) throw new RangeError();
-                return _outer[_a];
-            }
-            @property ref const(T) back() const
-            {
-                version (assert) if (empty) throw new RangeError();
-                return _outer[_b - 1];
-            }
+            version (assert) if (empty) throw new RangeError();
+            return _outer[_b - 1];
         }
 
         void popFront() @safe pure nothrow
@@ -334,49 +309,40 @@ Comparison for equality.
 
         static if (isMutable!A)
         {
-            T moveFront()
+            E moveFront()
             {
                 version (assert) if (empty || _a >= _outer.length) throw new RangeError();
                 return move(_outer._data._payload[_a]);
             }
 
-            T moveBack()
+            E moveBack()
             {
                 version (assert) if (empty || _b  > _outer.length) throw new RangeError();
                 return move(_outer._data._payload[_b - 1]);
             }
 
-            T moveAt(size_t i)
+            E moveAt(size_t i)
             {
                 version (assert) if (_a + i >= _b || _a + i >= _outer.length) throw new RangeError();
                 return move(_outer._data._payload[_a + i]);
             }
         }
 
-        ref const(T) opIndex(size_t i) const
+        ref inout(E) opIndex(size_t i) inout
         {
             version (assert) if (_a + i >= _b) throw new RangeError();
             return _outer[_a + i];
         }
 
-        static if (isMutable!A)
+        RangeT!(A) opSlice()
         {
-            ref T opIndex(size_t i)
-            {
-                version (assert) if (_a + i >= _b) throw new RangeError();
-                return _outer[_a + i];
-            }
+            return typeof(return)(_outer, _a, _b);
+        }
 
-            RangeT!(A) opSlice()
-            {
-                return typeof(return)(_outer, _a, _b);
-            }
-
-            RangeT!(A) opSlice(size_t i, size_t j)
-            {
-                version (assert) if (i > j || _a + j > _b) throw new RangeError();
-                return typeof(return)(_outer, _a + i, _a + j);
-            }
+        RangeT!(A) opSlice(size_t i, size_t j)
+        {
+            version (assert) if (i > j || _a + j > _b) throw new RangeError();
+            return typeof(return)(_outer, _a + i, _a + j);
         }
 
         RangeT!(const(A)) opSlice() const
@@ -392,13 +358,13 @@ Comparison for equality.
 
         static if (isMutable!A)
         {
-            void opSliceAssign(T value)
+            void opSliceAssign(E value)
             {
                 version (assert) if (_b > _outer.length) throw new RangeError();
                 _outer[_a .. _b] = value;
             }
 
-            void opSliceAssign(T value, size_t i, size_t j)
+            void opSliceAssign(E value, size_t i, size_t j)
             {
                 version (assert) if (_a + j > _b) throw new RangeError();
                 _outer[_a + i .. _a + j] = value;
@@ -418,13 +384,13 @@ Comparison for equality.
                 mixin(op~"_outer[_a + i .. _a + j];");
             }
 
-            void opSliceOpAssign(string op)(T value)
+            void opSliceOpAssign(string op)(E value)
             {
                 version (assert) if (_b > _outer.length) throw new RangeError();
                 mixin("_outer[_a .. _b] "~op~"= value;");
             }
 
-            void opSliceOpAssign(string op)(T value, size_t i, size_t j)
+            void opSliceOpAssign(string op)(E value, size_t i, size_t j)
             {
                 version (assert) if (_a + j > _b) throw new RangeError();
                 mixin("_outer[_a + i .. _a + j] "~op~"= value;");
@@ -435,9 +401,11 @@ Comparison for equality.
    Defines the container's primary range, which is a random-access range.
 
    ConstRange is a variant with const elements.
+   ImmutableRange is a variant with immutable elements.
 */
     alias Range = RangeT!Array;
     alias ConstRange = RangeT!(const Array); /// ditto
+    alias ImmutableRange = RangeT!(immutable Array); /// ditto
 
 /**
 Duplicates the container. The elements themselves are not transitively
@@ -530,6 +498,10 @@ Complexity: $(BIGOH 1)
     {
         return typeof(return)(this, 0, length);
     }
+    ImmutableRange opSlice() immutable
+    {
+        return typeof(return)(this, 0, length);
+    }
 
 /**
 Returns a range that iterates over elements of the container from
@@ -545,6 +517,11 @@ Complexity: $(BIGOH 1)
         return typeof(return)(this, i, j);
     }
     ConstRange opSlice(size_t i, size_t j) const
+    {
+        version (assert) if (i > j || j > length) throw new RangeError();
+        return typeof(return)(this, i, j);
+    }
+    ImmutableRange opSlice(size_t i, size_t j) immutable
     {
         version (assert) if (i > j || j > length) throw new RangeError();
         return typeof(return)(this, i, j);
@@ -1328,6 +1305,35 @@ unittest
 {
     static assert(is(Array!int.Range));
     static assert(is(Array!int.ConstRange));
+}
+
+unittest // const/immutable Array and Ranges
+{
+    static void test(A, R, E, S)()
+    {
+        A a;
+        R r = a[];
+        assert(r.empty);
+        assert(r.length == 0);
+        static assert(is(typeof(r.front) == E));
+        static assert(is(typeof(r.back) == E));
+        static assert(is(typeof(r[0]) == E));
+        static assert(is(typeof(r[]) == S));
+        static assert(is(typeof(r[0 .. 0]) == S));
+    }
+
+    alias A = Array!int;
+
+    test!(A, A.Range, int, A.Range);
+    test!(A, const A.Range, const int, A.ConstRange);
+
+    test!(const A, A.ConstRange, const int, A.ConstRange);
+    test!(const A, const A.ConstRange, const int, A.ConstRange);
+
+    test!(immutable A, A.ImmutableRange, immutable int, A.ImmutableRange);
+    test!(immutable A, const A.ImmutableRange, immutable int, A.ImmutableRange);
+    test!(immutable A, immutable A.ImmutableRange, immutable int,
+        A.ImmutableRange);
 }
 
 
