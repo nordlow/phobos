@@ -249,8 +249,8 @@ Comparison for equality.
 
     private static struct RangeT(A)
     {
-        /* Workaround for DMD compiler bug.
-           For detail see: http://forum.dlang.org/thread/vbmwhzvawhnkoxrhbnyb@forum.dlang.org?page=1
+        /* Workaround for Issue 13629 at https://issues.dlang.org/show_bug.cgi?id=13629
+           See also: http://forum.dlang.org/thread/vbmwhzvawhnkoxrhbnyb@forum.dlang.org?page=1
         */
         private A[1] _outer_;
         private @property ref inout(A) _outer() inout { return _outer_[0]; }
