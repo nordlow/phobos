@@ -334,12 +334,12 @@ Comparison for equality.
             return _outer[_a + i];
         }
 
-        RangeT!(A) opSlice()
+        RangeT opSlice()
         {
             return typeof(return)(_outer, _a, _b);
         }
 
-        RangeT!(A) opSlice(size_t i, size_t j)
+        RangeT opSlice(size_t i, size_t j)
         {
             version (assert) if (i > j || _a + j > _b) throw new RangeError();
             return typeof(return)(_outer, _a + i, _a + j);
