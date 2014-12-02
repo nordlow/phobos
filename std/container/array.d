@@ -22,9 +22,161 @@ module std.container.array;
 
 import std.range.primitives;
 import std.traits;
+import core.exception : RangeError;
+import std.algorithm : move;
 
 public import std.container.util;
 
+private static struct RangeT(A)
+{
+    /* Workaround for Issue 13629 at https://issues.dlang.org/show_bug.cgi?id=13629
+       See also: http://forum.dlang.org/thread/vbmwhzvawhnkoxrhbnyb@forum.dlang.org?page=1
+    */
+    private A[1] _outer_;
+    private @property ref inout(A) _outer() inout { return _outer_[0]; }
+
+    private size_t _a, _b;
+
+    /* E is different from T when A is more restrictively qualified than T:
+       immutable(Array!int) => T == int, E = immutable(int) */
+    alias E = typeof(_outer_[0]._data._payload[0]);
+
+    private this(ref A data, size_t a, size_t b)
+    {
+        _outer_ = data;
+        _a = a;
+        _b = b;
+    }
+
+    @property RangeT save()
+    {
+        return this;
+    }
+
+    @property bool empty() @safe pure nothrow const
+    {
+        return _a >= _b;
+    }
+
+    @property size_t length() @safe pure nothrow const
+    {
+        return _b - _a;
+    }
+    alias opDollar = length;
+
+    @property ref inout(E) front() inout
+    {
+        version (assert) if (empty) throw new RangeError();
+        return _outer[_a];
+    }
+    @property ref inout(E) back() inout
+    {
+        version (assert) if (empty) throw new RangeError();
+        return _outer[_b - 1];
+    }
+
+    void popFront() @safe pure nothrow
+    {
+        version (assert) if (empty) throw new RangeError();
+        ++_a;
+    }
+
+    void popBack() @safe pure nothrow
+    {
+        version (assert) if (empty) throw new RangeError();
+        --_b;
+    }
+
+    static if (isMutable!A)
+    {
+        E moveFront()
+        {
+            version (assert) if (empty || _a >= _outer.length) throw new RangeError();
+            return move(_outer._data._payload[_a]);
+        }
+
+        E moveBack()
+        {
+            version (assert) if (empty || _b  > _outer.length) throw new RangeError();
+            return move(_outer._data._payload[_b - 1]);
+        }
+
+        E moveAt(size_t i)
+        {
+            version (assert) if (_a + i >= _b || _a + i >= _outer.length) throw new RangeError();
+            return move(_outer._data._payload[_a + i]);
+        }
+    }
+
+    ref inout(E) opIndex(size_t i) inout
+    {
+        version (assert) if (_a + i >= _b) throw new RangeError();
+        return _outer[_a + i];
+    }
+
+    RangeT opSlice()
+    {
+        return typeof(return)(_outer, _a, _b);
+    }
+
+    RangeT opSlice(size_t i, size_t j)
+    {
+        version (assert) if (i > j || _a + j > _b) throw new RangeError();
+        return typeof(return)(_outer, _a + i, _a + j);
+    }
+
+    RangeT!(const(A)) opSlice() const
+    {
+        return typeof(return)(_outer, _a, _b);
+    }
+
+    RangeT!(const(A)) opSlice(size_t i, size_t j) const
+    {
+        version (assert) if (i > j || _a + j > _b) throw new RangeError();
+        return typeof(return)(_outer, _a + i, _a + j);
+    }
+
+    static if (isMutable!A)
+    {
+        void opSliceAssign(E value)
+        {
+            version (assert) if (_b > _outer.length) throw new RangeError();
+            _outer[_a .. _b] = value;
+        }
+
+        void opSliceAssign(E value, size_t i, size_t j)
+        {
+            version (assert) if (_a + j > _b) throw new RangeError();
+            _outer[_a + i .. _a + j] = value;
+        }
+
+        void opSliceUnary(string op)()
+        if (op == "++" || op == "--")
+        {
+            version (assert) if (_b > _outer.length) throw new RangeError();
+            mixin(op~"_outer[_a .. _b];");
+        }
+
+        void opSliceUnary(string op)(size_t i, size_t j)
+        if (op == "++" || op == "--")
+        {
+            version (assert) if (_a + j > _b) throw new RangeError();
+            mixin(op~"_outer[_a + i .. _a + j];");
+        }
+
+        void opSliceOpAssign(string op)(E value)
+        {
+            version (assert) if (_b > _outer.length) throw new RangeError();
+            mixin("_outer[_a .. _b] "~op~"= value;");
+        }
+
+        void opSliceOpAssign(string op)(E value, size_t i, size_t j)
+        {
+            version (assert) if (_a + j > _b) throw new RangeError();
+            mixin("_outer[_a + i .. _a + j] "~op~"= value;");
+        }
+    }
+}
 
 /**
 Array type with deterministic control of memory. The memory allocated
@@ -39,9 +191,8 @@ if (!is(Unqual!T == bool))
     import core.stdc.string;
 
     import core.memory;
-    import core.exception : RangeError;
 
-    import std.algorithm : initializeAll, move, copy;
+    import std.algorithm : initializeAll, copy;
     import std.exception : enforce;
     import std.typecons : RefCounted, RefCountedAutoInitialize;
 
@@ -247,156 +398,6 @@ Comparison for equality.
         return _data._payload == rhs._data._payload;
     }
 
-    private static struct RangeT(A)
-    {
-        /* Workaround for Issue 13629 at https://issues.dlang.org/show_bug.cgi?id=13629
-           See also: http://forum.dlang.org/thread/vbmwhzvawhnkoxrhbnyb@forum.dlang.org?page=1
-        */
-        private A[1] _outer_;
-        private @property ref inout(A) _outer() inout { return _outer_[0]; }
-
-        private size_t _a, _b;
-
-        /* E is different from T when A is more restrictively qualified than T:
-        immutable(Array!int) => T == int, E = immutable(int) */
-        alias E = typeof(_outer_[0]._data._payload[0]);
-
-        private this(ref A data, size_t a, size_t b)
-        {
-            _outer_ = data;
-            _a = a;
-            _b = b;
-        }
-
-        @property RangeT save()
-        {
-            return this;
-        }
-
-        @property bool empty() @safe pure nothrow const
-        {
-            return _a >= _b;
-        }
-
-        @property size_t length() @safe pure nothrow const
-        {
-            return _b - _a;
-        }
-        alias opDollar = length;
-
-        @property ref inout(E) front() inout
-        {
-            version (assert) if (empty) throw new RangeError();
-            return _outer[_a];
-        }
-        @property ref inout(E) back() inout
-        {
-            version (assert) if (empty) throw new RangeError();
-            return _outer[_b - 1];
-        }
-
-        void popFront() @safe pure nothrow
-        {
-            version (assert) if (empty) throw new RangeError();
-            ++_a;
-        }
-
-        void popBack() @safe pure nothrow
-        {
-            version (assert) if (empty) throw new RangeError();
-            --_b;
-        }
-
-        static if (isMutable!A)
-        {
-            E moveFront()
-            {
-                version (assert) if (empty || _a >= _outer.length) throw new RangeError();
-                return move(_outer._data._payload[_a]);
-            }
-
-            E moveBack()
-            {
-                version (assert) if (empty || _b  > _outer.length) throw new RangeError();
-                return move(_outer._data._payload[_b - 1]);
-            }
-
-            E moveAt(size_t i)
-            {
-                version (assert) if (_a + i >= _b || _a + i >= _outer.length) throw new RangeError();
-                return move(_outer._data._payload[_a + i]);
-            }
-        }
-
-        ref inout(E) opIndex(size_t i) inout
-        {
-            version (assert) if (_a + i >= _b) throw new RangeError();
-            return _outer[_a + i];
-        }
-
-        RangeT opSlice()
-        {
-            return typeof(return)(_outer, _a, _b);
-        }
-
-        RangeT opSlice(size_t i, size_t j)
-        {
-            version (assert) if (i > j || _a + j > _b) throw new RangeError();
-            return typeof(return)(_outer, _a + i, _a + j);
-        }
-
-        RangeT!(const(A)) opSlice() const
-        {
-            return typeof(return)(_outer, _a, _b);
-        }
-
-        RangeT!(const(A)) opSlice(size_t i, size_t j) const
-        {
-            version (assert) if (i > j || _a + j > _b) throw new RangeError();
-            return typeof(return)(_outer, _a + i, _a + j);
-        }
-
-        static if (isMutable!A)
-        {
-            void opSliceAssign(E value)
-            {
-                version (assert) if (_b > _outer.length) throw new RangeError();
-                _outer[_a .. _b] = value;
-            }
-
-            void opSliceAssign(E value, size_t i, size_t j)
-            {
-                version (assert) if (_a + j > _b) throw new RangeError();
-                _outer[_a + i .. _a + j] = value;
-            }
-
-            void opSliceUnary(string op)()
-            if (op == "++" || op == "--")
-            {
-                version (assert) if (_b > _outer.length) throw new RangeError();
-                mixin(op~"_outer[_a .. _b];");
-            }
-
-            void opSliceUnary(string op)(size_t i, size_t j)
-            if (op == "++" || op == "--")
-            {
-                version (assert) if (_a + j > _b) throw new RangeError();
-                mixin(op~"_outer[_a + i .. _a + j];");
-            }
-
-            void opSliceOpAssign(string op)(E value)
-            {
-                version (assert) if (_b > _outer.length) throw new RangeError();
-                mixin("_outer[_a .. _b] "~op~"= value;");
-            }
-
-            void opSliceOpAssign(string op)(E value, size_t i, size_t j)
-            {
-                version (assert) if (_a + j > _b) throw new RangeError();
-                mixin("_outer[_a + i .. _a + j] "~op~"= value;");
-            }
-        }
-    }
 /**
    Defines the container's primary range, which is a random-access range.
 
