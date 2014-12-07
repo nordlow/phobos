@@ -32,13 +32,19 @@ container.
 struct Sorted(Store, alias less = "a < b")
 {
 	static if(isRandomAccessRange!(Store))
+	{
+		alias Range = SortedRange!(Store, less);
+		alias StoreRange = Range;
 		enum storeIsContainer = false;
+	}
  	else static if(isRandomAccessRange!(typeof(Store.init[])))
+	{
+		alias Range = SortedRange!(Store.Range, less);
 		enum storeIsContainer = true;
+	}
 	else
 		static assert(false, "Store must be a random access range or a container providing one");
 	
-
     import std.functional : binaryFun;
     import std.exception : enforce;
     import std.range: SortedRange;
@@ -296,6 +302,57 @@ and $(D length == capacity), throws an exception.
 	/// ditto	
 	alias insert = insertBack;
 
+	// insert at front if the underlying store supports it
+	static if(__traits(compiles, store.insertFront(ElementType!Store.init)))
+	{
+	/** 
+		Inserts all elements of range $(D stuff) into store. If the underlying
+		store is a range and has not enough space left, throws an exception.
+		*/
+
+		size_t insertFront(Value)(Value value)
+        	if (isImplicitlyConvertible!(Value, ElementType!Store))
+		{
+			_store.insertFront(value);
+			++_length;
+			return 1;
+		}
+
+		size_t insertFront(Range)(Range stuff)
+        	if (isInputRange!Range 
+		   		&& isImplicitlyConvertible!(ElementType!Range, ElementType!Store))
+		{
+			size_t count = _store.insertFront(stuff);
+			_length += count;
+			return count;
+		}
+	}		
+/**
+	Returns a pointer to the first element in _store that is equal to 
+	$(D key) according to less.
+	*/
+	ElementType!Store* opIn(Value)(Value v)
+		if(__traits(compiles(this.equalRange(v)))
+	{
+		auto eq = this.equalRange(v);
+		if(eq.empty) 
+			return null;
+		
+		return &eq.front;
+	}
+
+	/**
+		Removes the given range from the store. Note that
+		this method requires r to be optained from this store
+		and the store to be a container.
+		*/
+		void remove(Range r)
+		{
+			size_t count = r.length;
+			_store.remove(r);
+			_length -= count;
+		}
+
 /**
 Removes the largest element 
      */
@@ -307,6 +364,7 @@ Removes the largest element
 
     /// ditto
     alias popBack = removeBack;
+
 
 /**
 Removes the largest element from the heap and returns a copy of
