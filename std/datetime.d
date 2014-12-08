@@ -8151,7 +8151,7 @@ public:
       +/
     static SysTime fromISOString(S)(in S isoString, immutable TimeZone tz = null) @safe
         if(isSomeString!S)
-    {        
+    {
         import std.string : strip;
         import std.conv : to;
         import std.algorithm : startsWith, find;
@@ -12641,7 +12641,7 @@ public:
         import std.conv : to;
         import std.algorithm : all, startsWith;
         import std.format : format;
-     
+
         auto dstr = to!dstring(strip(isoExtString));
 
         enforce(dstr.length >= 10, new DateTimeException(format("Invalid ISO Extended String: %s", isoExtString)));
@@ -31066,7 +31066,7 @@ unittest
     import std.string;
     import std.typecons;
     import std.typetuple;
-    
+
     static struct Rand3Letters
     {
         enum empty = false;
