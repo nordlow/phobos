@@ -204,7 +204,7 @@ SRC_STD_REGEX= std\regex\internal\ir.d std\regex\package.d std\regex\internal\pa
 	std\regex\internal\generator.d
 
 SRC_STD_RANGE= std\range\package.d std\range\primitives.d \
-	std\range\interfaces.d
+	std\range\interfaces.d std\experimental\range\ndslice.d
 
 SRC_STD_NET= std\net\isemail.d std\net\curl.d
 
@@ -392,6 +392,7 @@ DOCS=	$(DOC)\object.html \
 	$(DOC)\std_zlib.html \
 	$(DOC)\std_net_isemail.html \
 	$(DOC)\std_net_curl.html \
+	$(DOC)\std_experimental_range_ndslice.html \
 	$(DOC)\std_experimental_logger_core.html \
 	$(DOC)\std_experimental_logger_filelogger.html \
 	$(DOC)\std_experimental_logger_multilogger.html \
@@ -762,6 +763,9 @@ $(DOC)\std_net_isemail.html : $(STDDOC) std\net\isemail.d
 
 $(DOC)\std_net_curl.html : $(STDDOC) std\net\curl.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_net_curl.html $(STDDOC) std\net\curl.d
+
+$(DOC)\std_experimental_range_ndslice.html : $(STDDOC) std\experimental\range\ndslice.d
+	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_experimental_range_ndslice.html $(STDDOC) std\experimental\range\ndslice.d
 
 $(DOC)\std_experimental_logger_core.html : $(STDDOC) std\experimental\logger\core.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_experimental_logger_core.html $(STDDOC) std\experimental\logger\core.d
