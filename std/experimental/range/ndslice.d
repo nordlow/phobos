@@ -710,6 +710,46 @@ unittest {
 private bool isPermutation(size_t[] perm...) @safe pure nothrow
 
 
+private enum swappedStr = q{
+    auto ret = slice;
+    with(ret)
+    {
+        auto tl = lengths[i];
+        auto ts = strides[i];
+        lengths[i] = lengths[j];    
+        strides[i] = strides[j];
+        lengths[j] = tl;
+        strides[j] = ts;
+    }
+    return ret;
+};
+
+/// Swap dimensions
+template swapped(size_t i, size_t j)
+{
+    auto swapped(size_t N, Range)(auto ref Slice!(N, Range) slice)
+    {
+        mixin(swappedStr);
+    }
+}
+
+/// ditto
+auto swapped(size_t N, Range)(auto ref Slice!(N, Range) slice, size_t i, size_t j)
+{
+    mixin(swappedStr);
+}
+
+///
+unittest {
+    import std.range: iota;
+    auto tensor0 = 1000.iota.sliced(3, 4, 5, 6);
+    auto tensor1 = tensor0.swapped!(3, 1); // CTFE
+    auto tensor2 = tensor0.swapped (1, 3); // Runtime
+    assert(tensor1.shape == [3, 6, 5, 4]);
+    assert(tensor2.shape == [3, 6, 5, 4]);
+}
+
+
 /// Creates common N-dimensional array
 auto ndarray(size_t N, Range)(auto ref Slice!(N, Range) slice)
 {
