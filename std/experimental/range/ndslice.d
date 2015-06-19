@@ -198,6 +198,29 @@ public:
         }
     }
 
+
+    T opCast(T : E[], E)()
+    {
+        static if (version_minor >= 68)
+            mixin("pragma(inline);");
+
+        import std.array: uninitializedArray;
+        alias U = Unqual!E[];
+        U ret = void;
+        if(__ctfe)
+            ret = new U(lengths[0]);
+        else
+            ret = uninitializedArray!U(lengths[0]);
+        auto sl = this[];
+        foreach(ref e; ret)
+        {
+            e = cast(Unqual!E) sl.front;
+            sl.popFront;
+        }
+        return cast(T)ret;
+    }
+
+
     static if (isPointer!Range || is(Range == typeof(_range[0..$])))
     {
         auto byElement() @property
@@ -604,6 +627,17 @@ unittest {
     auto ar = 100.iota.array;
     auto ts = ar.sliced(3, 4, 5)[1..$, 2..$, 3..$];
     assert(ts.ptr is ar.ptr + 1*20+2*5+3*1);
+}
+
+/// Conversion
+unittest {
+    import std.range: iota;
+    auto matrix = 4.iota.sliced(2, 2);
+    auto arrays = cast(float[][]) matrix;
+    assert(arrays == [[0f, 1f], [2f, 3f]]);
+
+    import std.conv;
+    auto ars = matrix.to!(immutable double[][]); //calls opCast
 }
 
 /// Type conversion
