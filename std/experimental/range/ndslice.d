@@ -708,6 +708,28 @@ unittest {
 }
 
 private bool isPermutation(size_t[] perm...) @safe pure nothrow
+
+
+/// Creates common N-dimensional array
+auto ndarray(size_t N, Range)(auto ref Slice!(N, Range) slice)
+{
+    import std.array: array;
+    static if(N == 1)
+        return slice.array;
+    else
+    {
+        import std.algorithm: map;
+        return slice.map!(.ndarray).array;
+    }
+}
+
+///
+unittest {
+    import std.range: iota;
+    auto ar = 1000.iota.sliced(3, 4).ndarray;
+    static assert(is(typeof(ar) == int[][]));
+    assert(ar == [[0,1,2,3], [4,5,6,7], [8,9,10,11]]);
+}
 {
     if(perm.empty)
         return false;
