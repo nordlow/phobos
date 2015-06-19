@@ -636,38 +636,42 @@ auto createSlice(T, Lengths...)(Lengths lengths)
     return (new T[length]).sliced(lengths);
 }
 
-private enum transposedStr = 
-q{
-    size_t[N] tLengths = void;
-    size_t[N] tStrides  = void;
-    with(slice) foreach(i, p; permutation) //static
-    {
-        tLengths[i] = lengths[p];
-        tStrides[i] = strides[p];
-    }
-    return Slice!(N, Range)(tLengths, tStrides, slice._range.save);
-};
 
 /++
 N-dimenstional transpose operator.
 +/
-template transposed(permutation...)
-    if (permutation.length && isPermutation(permutation))
+template transposed(Permutation...)
+    if (Permutation.length)
 {
     auto transposed(size_t N, Range)(auto ref Slice!(N, Range) slice)
     {
-        import std.compiler;
+        //import std.compiler;
         //static if (version_minor >= 68)
         //    mixin("pragma(inline, true);");
-        mixin(transposedStr);
+        
+        size_t[N] tLengths = void;
+        size_t[N] tStrides  = void;
+        with(slice) foreach(i, p; completeTranspose!N([Permutation])) //TODO: static foreach
+        {
+            tLengths[i] = lengths[p];
+            tStrides[i] = strides[p];
+        }
+        return Slice!(N, Range)(tLengths, tStrides, slice._range);
     }
 }
 
 ///ditto
-auto transposed(size_t N, Range)(auto ref Slice!(N, Range) slice, size_t[] permutation...)
+auto transposed(size_t N, Range)(auto ref Slice!(N, Range) slice, in size_t[] permutation...)
 {
-    version (assert) if(permutation.length != N && !permutation.isPermutation) throw new RangeError();
-    mixin(transposedStr);
+    version (assert) if(permutation.length > N) throw new RangeError();
+    size_t[N] tLengths = void;
+    size_t[N] tStrides  = void;
+    with(slice) foreach(i, p; completeTranspose!N(permutation))
+    {
+        tLengths[i] = lengths[p];
+        tStrides[i] = strides[p];
+    }
+    return Slice!(N, Range)(tLengths, tStrides, slice._range);
 }
 
 ///
@@ -682,6 +686,15 @@ unittest {
     static assert(is(typeof(t0) == typeof(t2)));
 }
 
+/// Partially defined transpose
+unittest {
+    import std.range: iota;
+    auto tensor0 = 1000.iota.sliced(3, 4, 5, 6);
+    auto tensor1 = tensor0.transposed!(3, 1); // CTFE
+    auto tensor2 = tensor0.transposed (1, 3); // Runtime
+    assert(tensor1.shape == [6, 4, 3, 5]);
+    assert(tensor2.shape == [4, 6, 3, 5]);
+}
 
 /++
 2-dimenstional transpose operator.
@@ -693,7 +706,6 @@ auto transposed(Range)(auto ref Slice!(2, Range) slice)
     //    mixin("pragma(inline, true);");
     return .transposed!(1, 0)(slice);
 }
-
 
 ///
 unittest {
@@ -707,7 +719,25 @@ unittest {
     static assert(is(typeof(t0) == typeof(t2)));
 }
 
-private bool isPermutation(size_t[] perm...) @safe pure nothrow
+private size_t[N] completeTranspose(size_t N)(in size_t[] tr)
+out(res){
+    assert(isPermutation(res));
+}
+body {
+    assert(tr.length <= N);
+    size_t[N] ctr = void;
+    bool[N] mask;
+    foreach(i, ref e; tr)
+    {
+        mask[e] = true;
+        ctr[i] = e;
+    }
+    size_t j = ctr.length - tr.length;
+    foreach(i, e; mask)
+        if(e == false)
+            ctr[j++] = i;
+    return ctr;
+}
 
 
 private enum swappedStr = q{
@@ -770,23 +800,26 @@ unittest {
     static assert(is(typeof(ar) == int[][]));
     assert(ar == [[0,1,2,3], [4,5,6,7], [8,9,10,11]]);
 }
+
+private bool isPermutation(size_t N)(in size_t[N] perm...) @safe pure nothrow
 {
     if(perm.empty)
         return false;
-    import std.algorithm: all;
     immutable n = perm.length;
-    auto mask = new bool[n];
+    bool[N] mask;
     foreach(j; perm)
     {
         if (j >= n)
             return false;
         mask[j] = true;
     }
-    return mask.all;
+    foreach(e; mask)
+        if(e == false)
+            return false;
+    return true;
 }
 private enum isIndex(I) = is(I : size_t);
 private alias ImplicitlyUnqual(T) = Select!(isImplicitlyConvertible!(T, Unqual!T), Unqual!T, T);
-
 
 
 unittest
