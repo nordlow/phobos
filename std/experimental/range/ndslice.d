@@ -128,7 +128,7 @@ public:
     {
         @property auto range()
         {
-            return _range.save;
+            return _range;
         }
     }
 
@@ -230,7 +230,7 @@ public:
                 static if (isPointer!Range)
                     Slice!(N, Range) slice;
                 else
-                    Slice!(N, typeof(range.save())) slice;
+                    Slice!(N, typeof(range)) slice;
             }
         }
 
@@ -342,7 +342,10 @@ public:
             }
             else
             {
-                return cast(Slice!(N, Range)) this;
+                static if(isPointer!Range)
+                    return cast(Slice!(N, Range)) this;
+                else
+                    return Slice!(N, Range)(lengths, strides, _range[]);
             }
         }
 
@@ -615,7 +618,6 @@ unittest {
     assert(tensor.shape == structure.lengths);
 
     // `range` method
-    // Calls `range.save`.
     auto theIota0 = tensor.range;
     assert(theIota0.front == 0);
     tensor.popFront;
