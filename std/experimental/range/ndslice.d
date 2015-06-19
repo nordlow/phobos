@@ -790,6 +790,35 @@ private enum swappedStr = q{
     return ret;
 };
 
+
+auto everted(size_t N, Range)(auto ref Slice!(N, Range) slice)
+{
+    with(slice)
+    {
+        size_t[D] tLengths = void;
+        size_t[D] tStrides = void;
+        foreach(i; 0..N) //TODO: static foreach
+        {
+            tLengths[N-1-i] = lengths[i];
+            tStrides[N-1-i] = strides[i];
+        }
+        foreach(i; N .. D) //TODO: static foreach
+        {
+            tLengths[i] = lengths[i];
+            tStrides[i] = strides[i];
+        }
+        return Slice!(N, Range)(tLengths, tStrides, slice._range);
+    }
+}
+
+/// Partially defined transpose
+unittest {
+    import std.range: iota;
+    auto tensor0 = 1000.iota.sliced(3, 4, 5, 6);
+    auto tensor1 = tensor0.everted;
+    assert(tensor1.shape == [6, 5, 4, 3]);
+}
+
 /// Swap dimensions
 template swapped(size_t i, size_t j)
 {
