@@ -179,6 +179,22 @@ public import std.typecons : Flag, Yes, No;
 import std.traits;
 import std.typetuple;
 
+// nothrow @nogc
+unittest
+{
+    import std.meta : AliasSeq;
+    foreach (T; AliasSeq!(byte, short, int,
+                          ubyte, ushort, uint))
+    {
+        auto i = iota!T();
+        assert(i.front == T.min);
+        enum length = cast(size_t)Unsigned!T.max + 1;
+        assert(i.length == length);
+        // i.dropExactly(length - 1);
+        // i.front == T.max;
+    }
+}
+
 
 /**
 Iterates a bidirectional range backwards. The original range can be
@@ -4728,6 +4744,42 @@ auto iota(E)(E end)
 {
     E begin = 0;
     return iota(begin, end);
+}
+
+/// Ditto
+auto iota(T)()
+    if (isIntegral!T)
+{
+    import std.conv : unsigned;
+
+    alias Value = Unqual!T;
+
+    static struct Result
+    {
+        private Value current;
+        private bool _empty;
+
+        this(Value current)
+        {
+            this._empty = false;
+            this.current = current;
+        }
+
+        @property bool empty() const { return _empty; }
+        @property inout(Value) front() inout { assert(!_empty); return current; }
+        void popFront() { assert(!_empty); ++current; if (current == T.min) _empty = true; }
+
+        @property auto save() { return this; }
+
+        @property size_t length() const
+        {
+            return _empty ? 0 : cast(size_t)T.max + 1 - current;
+        }
+
+        alias opDollar = length;
+    }
+
+    return Result(T.min);
 }
 
 /// Ditto
