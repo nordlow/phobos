@@ -179,6 +179,8 @@ public import std.typecons : Flag, Yes, No;
 import std.traits;
 import std.typetuple;
 
+// version(unittest) import std.stdio;
+
 // nothrow @nogc
 unittest
 {
@@ -186,12 +188,15 @@ unittest
     foreach (T; AliasSeq!(byte, short, int,
                           ubyte, ushort, uint))
     {
+        // writeln("T:", T.stringof);
         auto i = iota!T();
         assert(i.front == T.min);
+        assert(i.back == T.max);
+        assert(i.front == i[0]);
+        assert(i[i.length - 1] == T.max);
+
         enum length = cast(size_t)Unsigned!T.max + 1;
         assert(i.length == length);
-        // i.dropExactly(length - 1);
-        // i.front == T.max;
     }
 }
 
@@ -4750,30 +4755,38 @@ auto iota(E)(E end)
 auto iota(T)()
     if (isIntegral!T)
 {
-    import std.conv : unsigned;
-
     alias Value = Unqual!T;
 
     static struct Result
     {
-        private Value current;
+        private Value _current;
         private bool _empty;
 
-        this(Value current)
+        this(Value _current)
         {
             this._empty = false;
-            this.current = current;
+            this._current = _current;
         }
 
         @property bool empty() const { return _empty; }
-        @property inout(Value) front() inout { assert(!_empty); return current; }
-        void popFront() { assert(!_empty); ++current; if (current == T.min) _empty = true; }
+        @property inout(Value) front() inout { assert(!_empty); return _current; }
+        void popFront() { assert(!_empty); ++_current; if (_current == T.min) _empty = true; }
+
+        @property inout(Value) back() inout { assert(!empty); return cast(inout(Value))(T.max); }
 
         @property auto save() { return this; }
 
+        inout(Value) opIndex(ulong n) inout
+        {
+            assert(n < this.length);
+            // Just cast to Value here because doing so gives overflow behavior
+            // consistent with calling popFront() n times.
+            return cast(inout Value) (_current + n);
+        }
+
         @property size_t length() const
         {
-            return _empty ? 0 : cast(size_t)T.max + 1 - current;
+            return _empty ? 0 : cast(size_t)T.max + 1 - _current;
         }
 
         alias opDollar = length;
