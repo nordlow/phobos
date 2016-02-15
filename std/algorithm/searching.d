@@ -2450,9 +2450,9 @@ Params:
 
 Returns:
 
-A sub-type of Tuple!() of the split portions of `haystack` (see above for
-details).  This sub-type of Tuple!() has opCast defined for bool.  This opCast
-returns $(D true) when the separating $(D needle) was found (!result[1].empty)
+A sub-type of $(D Tuple!()) of the split portions of `haystack` (see above for
+details).  This sub-type of $(D Tuple!()) has $(D opCast) defined for $(D bool).  This $(D opCast)
+returns $(D true) when the separating $(D needle) was found ($(D !result[1].empty))
 and $(D false) otherwise.  This enables the convenient idiom shown in the
 following example.
 
