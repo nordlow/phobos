@@ -1,6 +1,13 @@
 module std.experimental.allocator.mallocator;
 import std.experimental.allocator.common;
 
+extern(C) pure nothrow @system @nogc
+{
+    void* malloc(size_t size);
+    void* realloc(void* ptr, size_t size);
+    void free(void* ptr);
+}
+
 /**
    The C heap allocator.
  */
@@ -22,9 +29,8 @@ struct Mallocator
     programs that can afford to leak memory allocated.
     */
     @trusted @nogc nothrow
-    void[] allocate(size_t bytes) shared
+    void[] allocate(size_t bytes) shared pure
     {
-        import core.stdc.stdlib : malloc;
         if (!bytes) return null;
         auto p = malloc(bytes);
         return p ? p[0 .. bytes] : null;
@@ -32,18 +38,16 @@ struct Mallocator
 
     /// Ditto
     @system @nogc nothrow
-    bool deallocate(void[] b) shared
+    bool deallocate(void[] b) shared pure
     {
-        import core.stdc.stdlib : free;
         free(b.ptr);
         return true;
     }
 
     /// Ditto
     @system @nogc nothrow
-    bool reallocate(ref void[] b, size_t s) shared
+    bool reallocate(ref void[] b, size_t s) shared pure
     {
-        import core.stdc.stdlib : realloc;
         if (!s)
         {
             // fuzzy area in the C standard, see http://goo.gl/ZpWeSE
@@ -132,7 +136,6 @@ version (Windows)
         @nogc nothrow
         private void* _aligned_malloc(size_t size, size_t alignment)
         {
-            import std.c.stdlib: malloc;
             size_t offset = alignment + size_t.sizeof * 2 - 1;
 
             // unaligned chunk
@@ -154,7 +157,6 @@ version (Windows)
         @nogc nothrow
         private void* _aligned_realloc(void* ptr, size_t size, size_t alignment)
         {
-            import std.c.stdlib: free;
             import std.c.string: memcpy;
 
             if(!ptr) return _aligned_malloc(size, alignment);
@@ -181,7 +183,6 @@ version (Windows)
         @nogc nothrow
         private void _aligned_free(void *ptr)
         {
-            import std.c.stdlib: free;
             if (!ptr) return;
             AlignInfo* head = AlignInfo(ptr);
             free(head.basePtr);
@@ -263,7 +264,6 @@ struct AlignedMallocator
     @system @nogc nothrow
     bool deallocate(void[] b) shared
     {
-        import core.stdc.stdlib : free;
         free(b.ptr);
         return true;
     }
