@@ -201,6 +201,18 @@ template to(T)
         return toImpl!T(args);
     }
 
+    T to(A)(A arg, T defaultArg) nothrow
+    {
+        try
+        {
+            return toImpl!T(arg);
+        }
+        catch (Exception e)     // catch all not just ConvException in order to make this nothrow
+        {
+            return defaultArg;
+        }
+    }
+
     // Fix issue 6175
     T to(S)(ref S arg)
         if (isStaticArray!S)
@@ -5647,6 +5659,13 @@ if (isIntegral!T)
     enum Test { a = 0 }
     ulong l = 0;
     auto t = l.to!Test;
+}
+
+// conversion with default argument is nothrow
+@safe pure nothrow unittest
+{
+    const a = `42`;
+    const b = a.to!int(int.max);
 }
 
 // asOriginalType
