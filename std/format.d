@@ -4267,11 +4267,12 @@ if (is(T == enum))
 {
     if (f.spec == 's')
     {
+        alias members = AliasSeq!(__traits(allMembers, T)); // much faster when being outside of loop
         foreach (i, e; EnumMembers!T)
         {
             if (val == e)
             {
-                formatValueImpl(w, __traits(allMembers, T)[i], f);
+                formatValueImpl(w, members[i], f);
                 return;
             }
         }
