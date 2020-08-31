@@ -3116,7 +3116,7 @@ deprecated(
     assert(a == 3);
     a *= 6;
     assert(a == 18);
-    a = a;
+    a = a.init;
     assert(a == 18);
     a.nullify();
     assertThrown!Throwable(a += 2);
