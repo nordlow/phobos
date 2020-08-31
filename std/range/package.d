@@ -11537,7 +11537,7 @@ public:
             return (*_range).front;
         }
 
-        static if (is(typeof((*_range).front = (*_range).front))) @property auto front(ElementType!R value)
+        static if (is(typeof((*_range).front = (*_range).front.init))) @property auto front(ElementType!R value)
         {
             return (*_range).front = value;
         }
@@ -11665,7 +11665,7 @@ public:
             return (*_range).back;
         }
 
-        static if (is(typeof((*_range).back = (*_range).back))) @property auto back(ElementType!R value)
+        static if (is(typeof((*_range).back = (*_range).back.init))) @property auto back(ElementType!R value)
         {
             return (*_range).back = value;
         }
