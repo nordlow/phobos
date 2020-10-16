@@ -3247,7 +3247,7 @@ if (isDynamicArray!A)
         bool canExtend = false;
     }
 
-    private Data* _data;
+    private Data _data;
 
     /**
      * Constructs an `Appender` with a given array.  Note that this does not copy the
@@ -3258,7 +3258,6 @@ if (isDynamicArray!A)
     this(A arr) @trusted pure nothrow
     {
         // initialize to a given array.
-        _data = new Data;
         _data.arr = cast(Unqual!T[]) arr; //trusted
 
         if (__ctfe)
@@ -3288,15 +3287,8 @@ if (isDynamicArray!A)
      */
     void reserve(size_t newCapacity)
     {
-        if (_data)
-        {
-            if (newCapacity > _data.capacity)
-                ensureAddable(newCapacity - _data.arr.length);
-        }
-        else
-        {
-            ensureAddable(newCapacity);
-        }
+        if (newCapacity > _data.capacity)
+            ensureAddable(newCapacity - _data.arr.length);
     }
 
     /**
@@ -3306,7 +3298,7 @@ if (isDynamicArray!A)
      */
     @property size_t capacity() const @safe pure nothrow
     {
-        return _data ? _data.capacity : 0;
+        return _data.capacity;
     }
 
     /**
@@ -3326,14 +3318,12 @@ if (isDynamicArray!A)
         /* @trusted operation:
          * casting Unqual!T[] to inout(T)[]
          */
-        return cast(typeof(return))(_data ? _data.arr : null);
+        return cast(typeof(return))(_data.arr);
     }
 
     // ensure we can add nelems elements, resizing as necessary
     private void ensureAddable(size_t nelems)
     {
-        if (!_data)
-            _data = new Data;
         immutable len = _data.arr.length;
         immutable reqlen = len + nelems;
 
@@ -3554,10 +3544,7 @@ if (isDynamicArray!A)
          */
         void clear() @trusted pure nothrow
         {
-            if (_data)
-            {
-                _data.arr = _data.arr.ptr[0 .. 0];
-            }
+            _data.arr = _data.arr.ptr[0 .. 0];
         }
 
         /**
@@ -3569,13 +3556,8 @@ if (isDynamicArray!A)
         void shrinkTo(size_t newlength) @trusted pure
         {
             import std.exception : enforce;
-            if (_data)
-            {
-                enforce(newlength <= _data.arr.length, "Attempting to shrink Appender with newlength > length");
-                _data.arr = _data.arr.ptr[0 .. newlength];
-            }
-            else
-                enforce(newlength == 0, "Attempting to shrink empty Appender with non-zero newlength");
+            enforce(newlength <= _data.arr.length, "Attempting to shrink Appender with newlength > length");
+            _data.arr = _data.arr.ptr[0 .. newlength];
         }
     }
 
