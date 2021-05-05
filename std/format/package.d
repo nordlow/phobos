@@ -755,7 +755,7 @@ Throws:
 See_Also:
     $(LREF sformat) for a variant, that tries to avoid garbage collection.
  */
-immutable(Char)[] format(Char, Args...)(scope const Char[] fmt, scope Args args)
+immutable(Char)[] format(Char, Args...)(scope const Char[] fmt, scope Args args) @safe
 if (isSomeChar!Char)
 {
     import std.array : appender;
