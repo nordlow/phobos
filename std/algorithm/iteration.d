@@ -2156,8 +2156,6 @@ if (isInputRange!Range)
     static if (isUnary)
         alias eq = binaryFun!((a, b) => unaryFun!pred(a) == unaryFun!pred(b));
     else
-    {
-        enum opType = GroupingOpType.binaryEquivalent;
         alias eq = binaryFun!pred;
 
     return ChunkByImpl!(pred, eq, isUnary, Range)(r);
