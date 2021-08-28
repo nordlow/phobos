@@ -148,7 +148,7 @@ version (StdUnittest)
 private:
     struct TestAliasedString
     {
-        string get() @safe @nogc pure nothrow { return _s; }
+        string get() @safe @nogc pure nothrow return scope { return _s; }
         alias get this;
         @disable this(this);
         string _s;
@@ -240,6 +240,17 @@ if (isSomeChar!Char)
     return cString ? cString[0 .. cstrlen(cString)] : null;
 }
 
+/// ditto
+inout(Char)[] fromStringz(Char)(return scope inout(Char)[] cString) @nogc @safe pure nothrow
+if (isSomeChar!Char)
+{
+    foreach (i; 0 .. cString.length)
+        if (cString[i] == '\0')
+            return cString[0 .. i];
+
+    return cString;
+}
+
 ///
 @system pure unittest
 {
@@ -250,6 +261,44 @@ if (isSomeChar!Char)
     assert(fromStringz("福\0"c.ptr) == "福"c);
     assert(fromStringz("福\0"w.ptr) == "福"w);
     assert(fromStringz("福\0"d.ptr) == "福"d);
+}
+
+///
+@nogc @safe pure nothrow unittest
+{
+    struct C
+    {
+        char[32] name;
+    }
+    assert(C("foo\0"c).name.fromStringz() == "foo"c);
+
+    struct W
+    {
+        wchar[32] name;
+    }
+    assert(W("foo\0"w).name.fromStringz() == "foo"w);
+
+    struct D
+    {
+        dchar[32] name;
+    }
+    assert(D("foo\0"d).name.fromStringz() == "foo"d);
+}
+
+@nogc @safe pure nothrow unittest
+{
+    assert( string.init.fromStringz() == ""c);
+    assert(wstring.init.fromStringz() == ""w);
+    assert(dstring.init.fromStringz() == ""d);
+
+    immutable  char[3] a = "foo"c;
+    assert(a.fromStringz() == "foo"c);
+
+    immutable wchar[3] b = "foo"w;
+    assert(b.fromStringz() == "foo"w);
+
+    immutable dchar[3] c = "foo"d;
+    assert(c.fromStringz() == "foo"d);
 }
 
 @system pure unittest
@@ -325,6 +374,9 @@ out (result)
 do
 {
     import std.exception : assumeUnique;
+
+    if (s.empty) return "".ptr;
+
     /+ Unfortunately, this isn't reliable.
      We could make this work if string literals are put
      in read-only memory and we test if s[] is pointing into
@@ -346,26 +398,6 @@ do
     copy[s.length] = 0;
 
     return &assumeUnique(copy)[0];
-}
-
-/++ Ditto +/
-immutable(char)* toStringz(return scope string s) @trusted pure nothrow
-{
-    if (s.empty) return "".ptr;
-    /* Peek past end of s[], if it's 0, no conversion necessary.
-     * Note that the compiler will put a 0 past the end of static
-     * strings, and the storage allocator will put a 0 past the end
-     * of newly allocated char[]'s.
-     */
-    immutable p = s.ptr + s.length;
-    // Is p dereferenceable? A simple test: if the p points to an
-    // address multiple of 4, then conservatively assume the pointer
-    // might be pointing to a new block of memory, which might be
-    // unreadable. Otherwise, it's definitely pointing to valid
-    // memory.
-    if ((cast(size_t) p & 3) && *p == 0)
-        return &s[0];
-    return toStringz(cast(const char[]) s);
 }
 
 ///
@@ -395,6 +427,27 @@ pure nothrow @system unittest
     const string test2 = "";
     p = toStringz(test2);
     assert(*p == 0);
+
+    assert(toStringz([]) is toStringz(""));
+}
+
+pure nothrow @system unittest // https://issues.dlang.org/show_bug.cgi?id=15136
+{
+    static struct S
+    {
+        immutable char[5] str;
+        ubyte foo;
+        this(char[5] str) pure nothrow
+        {
+            this.str = str;
+        }
+    }
+    auto s = S("01234");
+    const str = s.str.toStringz;
+    assert(str !is s.str.ptr);
+    assert(*(str + 5) == 0); // Null terminated.
+    s.foo = 42;
+    assert(*(str + 5) == 0); // Still null terminated.
 }
 
 
@@ -2628,8 +2681,12 @@ if (isSomeChar!C)
 
     enum S : string { a = "hello\nworld" }
     assert(S.a.splitLines() == ["hello", "world"]);
+}
 
-    char[S.a.length] sa = S.a[];
+@system pure nothrow unittest
+{
+    // dip1000 cannot express an array of scope arrays, so this is not @safe
+    char[11] sa = "hello\nworld";
     assert(sa.splitLines() == ["hello", "world"]);
 }
 
@@ -6314,14 +6371,6 @@ if (isSomeString!S ||
     assert(!isNumeric("+"));
 }
 
-version (TestComplex)
-deprecated
-@safe unittest
-{
-    import std.conv : to;
-    assert(isNumeric(to!string(123e+2+1234.78Li)) == true);
-}
-
 /*****************************
  * Soundex algorithm.
  *
@@ -6436,7 +6485,7 @@ if (isConvertibleToString!Range)
  * See_Also:
  *  $(LREF soundexer)
  */
-char[] soundex(scope const(char)[] str, char[] buffer = null)
+char[] soundex(scope const(char)[] str, return scope char[] buffer = null)
     @safe pure nothrow
 in
 {
@@ -6658,7 +6707,7 @@ string[string] abbrev(string[] values) @safe pure
  */
 
 size_t column(Range)(Range str, in size_t tabsize = 8)
-if ((isInputRange!Range && isSomeChar!(Unqual!(ElementEncodingType!Range)) ||
+if ((isInputRange!Range && isSomeChar!(ElementEncodingType!Range) ||
     isNarrowString!Range) &&
     !isConvertibleToString!Range)
 {
@@ -6941,7 +6990,7 @@ void main() {
  *     StringException if indentation is done with different sequences
  *     of whitespace characters.
  */
-S[] outdent(S)(S[] lines) @safe pure
+S[] outdent(S)(return scope S[] lines) @safe pure
 if (isSomeString!S)
 {
     import std.algorithm.searching : startsWith;

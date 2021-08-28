@@ -38,6 +38,7 @@ $(UL
        `std.getopt.config.passThrough` was not present.)
   $(LI A command-line option was not found, and
        `std.getopt.config.required` was present.)
+  $(LI A callback option is missing a value.)
 )
 */
 class GetOptException : Exception
@@ -97,8 +98,8 @@ void main(string[] args)
  the parameter cannot be parsed properly (e.g., a number is expected
  but not present), a `ConvException` exception is thrown.
  If `std.getopt.config.passThrough` was not passed to `getopt`
- and an unrecognized command-line argument is found, a `GetOptException`
- is thrown.
+ and an unrecognized command-line argument is found, or if a required
+ argument is missing a `GetOptException` is thrown.
 
  Depending on the type of the pointer being bound, `getopt`
  recognizes the following kinds of options:
@@ -868,7 +869,6 @@ private bool handleOption(R)(string option, R receiver, ref string[] args,
         {
             import std.exception : enforce;
             // non-boolean option, which might include an argument
-            //enum isCallbackWithOneParameter = is(typeof(receiver("")) : void);
             enum isCallbackWithLessThanTwoParameters =
                 (is(typeof(receiver) == delegate) || is(typeof(*receiver) == function)) &&
                 !is(typeof(receiver("", "")));
@@ -876,7 +876,7 @@ private bool handleOption(R)(string option, R receiver, ref string[] args,
             {
                 // Eat the next argument too.  Check to make sure there's one
                 // to be eaten first, though.
-                enforce(i < args.length,
+                enforce!GetOptException(i < args.length,
                     "Missing value for argument " ~ a ~ ".");
                 val = args[i];
                 args = args[0 .. i] ~ args[i + 1 .. $];
@@ -1106,9 +1106,9 @@ private struct configuration
 private bool optMatch(string arg, scope string optPattern, ref string value,
     configuration cfg) @safe
 {
-    import std.array : split;
+    import std.algorithm.iteration : splitter;
     import std.string : indexOf;
-    import std.uni : toUpper;
+    import std.uni : icmp;
     //writeln("optMatch:\n  ", arg, "\n  ", optPattern, "\n  ", value);
     //scope(success) writeln("optMatch result: ", value);
     if (arg.length < 2 || arg[0] != optionChar) return false;
@@ -1148,11 +1148,10 @@ private bool optMatch(string arg, scope string optPattern, ref string value,
     }
     //writeln("Arg: ", arg, " pattern: ", optPattern, " value: ", value);
     // Split the option
-    const variants = split(optPattern, "|");
-    foreach (v ; variants)
+    foreach (v; splitter(optPattern, "|"))
     {
         //writeln("Trying variant: ", v, " against ", arg);
-        if (arg == v || !cfg.caseSensitive && toUpper(arg) == toUpper(v))
+        if (arg == v || (!cfg.caseSensitive && icmp(arg, v) == 0))
             return true;
         if (cfg.bundling && !isLong && v.length == 1
                 && indexOf(arg, v) >= 0)
@@ -1185,7 +1184,7 @@ private void setConfig(ref configuration cfg, config option) @safe pure nothrow 
 @safe unittest
 {
     import std.conv;
-    import std.math;
+    import std.math.operations : isClose;
 
     uint paranoid = 2;
     string[] args = ["program.name", "--paranoid", "--paranoid", "--paranoid"];
@@ -1242,8 +1241,8 @@ private void setConfig(ref configuration cfg, config option) @safe pure nothrow 
         getopt(testArgs, "tune", &tuningParms);
         assert(testArgs.length == 1);
         assert(tuningParms.length == 2);
-        assert(approxEqual(tuningParms["alpha"], 0.5));
-        assert(approxEqual(tuningParms["beta"], 0.6));
+        assert(isClose(tuningParms["alpha"], 0.5));
+        assert(isClose(tuningParms["beta"], 0.6));
         arraySep = "";
     }
 
@@ -1362,6 +1361,12 @@ private void setConfig(ref configuration cfg, config option) @safe pure nothrow 
     args = ["program.name", "--verbose", "2"];
     try { getopt(args, "verbose", &myStaticHandler3); assert(0); }
     catch (MyEx ex) { assert(ex.option == "verbose" && ex.value == "2"); }
+
+    // check that GetOptException is thrown if the value is missing
+    args = ["program.name", "--verbose"];
+    try { getopt(args, "verbose", &myStaticHandler3); assert(0); }
+    catch (GetOptException e) {}
+    catch (Exception e) { assert(0); }
 }
 
 @safe unittest // @safe std.getopt.config option use
@@ -1661,7 +1666,7 @@ Params:
 void defaultGetoptFormatter(Output)(Output output, string text, Option[] opt, string style = "%*s %*s%*s%s\n")
 {
     import std.algorithm.comparison : min, max;
-    import std.format : formattedWrite;
+    import std.format.write : formattedWrite;
 
     output.formattedWrite("%s\n", text);
 

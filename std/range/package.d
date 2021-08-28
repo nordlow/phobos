@@ -656,12 +656,14 @@ do
             static if (hasSlicing!R && hasLength!R)
                 typeof(this) opSlice(size_t lower, size_t upper)
                 {
-                    assert(upper >= lower && upper <= length);
+                    assert(upper >= lower && upper <= length,
+                        "Attempt to get out-of-bounds slice of `stride` range");
                     immutable translatedUpper = (upper == 0) ? 0 :
                         (upper * _n - (_n - 1));
                     immutable translatedLower = min(lower * _n, translatedUpper);
 
-                    assert(translatedLower <= translatedUpper);
+                    assert(translatedLower <= translatedUpper,
+                        "Overflow when calculating slice of `stride` range");
 
                     return typeof(this)(source[translatedLower .. translatedUpper], _n);
                 }
@@ -930,7 +932,8 @@ if (Ranges.length > 0 &&
         public:
             this(R input)
             {
-                foreach (i, v; input)
+                // Must be static foreach because of https://issues.dlang.org/show_bug.cgi?id=21209
+                static foreach (i, v; input)
                 {
                     source[i] = v;
                 }
@@ -983,6 +986,7 @@ if (Ranges.length > 0 &&
                     source[i].popFront();
                     return;
                 }
+                assert(false, "Attempt to `popFront` of empty `chain` range");
             }
 
             @property auto ref front()
@@ -992,7 +996,7 @@ if (Ranges.length > 0 &&
                     if (source[i].empty) continue;
                     return fixRef(source[i].front);
                 }
-                assert(false);
+                assert(false, "Attempt to get `front` of empty `chain` range");
             }
 
             static if (allSameType && allSatisfy!(hasAssignableElements, R))
@@ -1008,7 +1012,7 @@ if (Ranges.length > 0 &&
                         source[i].front = v;
                         return;
                     }
-                    assert(false);
+                    assert(false, "Attempt to set `front` of empty `chain` range");
                 }
             }
 
@@ -1021,7 +1025,7 @@ if (Ranges.length > 0 &&
                         if (source[i].empty) continue;
                         return source[i].moveFront();
                     }
-                    assert(false);
+                    assert(false, "Attempt to `moveFront` of empty `chain` range");
                 }
             }
 
@@ -1034,7 +1038,7 @@ if (Ranges.length > 0 &&
                         if (source[i].empty) continue;
                         return fixRef(source[i].back);
                     }
-                    assert(false);
+                    assert(false, "Attempt to get `back` of empty `chain` range");
                 }
 
                 void popBack()
@@ -1045,6 +1049,7 @@ if (Ranges.length > 0 &&
                         source[i].popBack();
                         return;
                     }
+                    assert(false, "Attempt to `popBack` of empty `chain` range");
                 }
 
                 static if (allSatisfy!(hasMobileElements, R))
@@ -1056,7 +1061,7 @@ if (Ranges.length > 0 &&
                             if (source[i].empty) continue;
                             return source[i].moveBack();
                         }
-                        assert(false);
+                        assert(false, "Attempt to `moveBack` of empty `chain` range");
                     }
                 }
 
@@ -1070,7 +1075,7 @@ if (Ranges.length > 0 &&
                             source[i].back = v;
                             return;
                         }
-                        assert(false);
+                        assert(false, "Attempt to set `back` of empty `chain` range");
                     }
                 }
             }
@@ -1107,7 +1112,7 @@ if (Ranges.length > 0 &&
                             index -= length;
                         }
                     }
-                    assert(false);
+                    assert(false, "Attempt to access out-of-bounds index of `chain` range");
                 }
 
                 static if (allSatisfy!(hasMobileElements, R))
@@ -1127,7 +1132,7 @@ if (Ranges.length > 0 &&
                                 index -= length;
                             }
                         }
-                        assert(false);
+                        assert(false, "Attempt to move out-of-bounds index of `chain` range");
                     }
                 }
 
@@ -1151,7 +1156,7 @@ if (Ranges.length > 0 &&
                                 index -= length;
                             }
                         }
-                        assert(false);
+                        assert(false, "Attempt to write out-of-bounds index of `chain` range");
                     }
             }
 
@@ -1471,7 +1476,7 @@ private struct ChooseResult(R1, R2)
     this(bool r1Chosen, return scope R1 r1, return scope R2 r2) @trusted
     {
         // @trusted because of assignment of r1 and r2 which overlap each other
-        import std.conv : emplace;
+        import core.lifetime : emplace;
 
         // This should be the only place r1Chosen is ever assigned
         // independently
@@ -4718,7 +4723,7 @@ if (Ranges.length && allSatisfy!(isInputRange, Ranges))
             static foreach (i, Range; Ranges)
                 static if (hasLength!Range)
                 {
-                    static if (!anySatisfy!(hasLength, Ranges[0 .. i]))
+                    static if (!is(typeof(minLen) == size_t))
                         size_t minLen = ranges[i].length;
                     else
                     {{
@@ -5077,29 +5082,20 @@ if (Ranges.length && allSatisfy!(isInputRange, Ranges))
     {
         @property size_t length()
         {
-            static if (allKnownSameLength)
-            {
-                static foreach (i, Range; Ranges)
+           static foreach (i, Range; Ranges)
+           {
+                static if (hasLength!Range)
                 {
-                    static if (hasLength!Range && !anySatisfy!(hasLength, Ranges[0 .. i]))
-                        return ranges[i].length;
+                    static if (!is(typeof(minLen) == size_t))
+                        size_t minLen = ranges[i].length;
+                    else static if (!allKnownSameLength)
+                    {{
+                        const x = ranges[i].length;
+                        if (x < minLen) minLen = x;
+                    }}
                 }
             }
-            else
-            {
-                static foreach (i, Range; Ranges)
-                    static if (hasLength!Range)
-                    {
-                        static if (!anySatisfy!(hasLength, Ranges[0 .. i]))
-                            size_t minLen = ranges[i].length;
-                        else
-                        {{
-                            const x = ranges[i].length;
-                            if (x < minLen) minLen = x;
-                        }}
-                    }
-                return minLen;
-            }
+            return minLen;
         }
 
         alias opDollar = length;
@@ -6073,7 +6069,9 @@ pure @safe nothrow @nogc unittest
 /// Fibonacci numbers, using function in explicit form:
 @safe nothrow @nogc unittest
 {
-    import std.math : pow, round, sqrt;
+    import std.math.exponential : pow;
+    import std.math.rounding : round;
+    import std.math.algebraic : sqrt;
     static ulong computeFib(S)(S state, size_t n)
     {
         // Binet's formula
@@ -6333,7 +6331,8 @@ if (isIntegral!(CommonType!(B, E)) || isPointer!(CommonType!(B, E)))
         {
             if (current < pastLast)
             {
-                assert(unsigned(pastLast - current) <= size_t.max);
+                assert(unsigned(pastLast - current) <= size_t.max,
+                    "`iota` range is too long");
 
                 this.current = current;
                 this.pastLast = pastLast;
@@ -6346,17 +6345,34 @@ if (isIntegral!(CommonType!(B, E)) || isPointer!(CommonType!(B, E)))
         }
 
         @property bool empty() const { return current == pastLast; }
-        @property inout(Value) front() inout { assert(!empty); return current; }
-        void popFront() { assert(!empty); ++current; }
+        @property inout(Value) front() inout
+        {
+            assert(!empty, "Attempt to access `front` of empty `iota` range");
+            return current;
+        }
+        void popFront()
+        {
+            assert(!empty, "Attempt to `popFront` of empty `iota` range");
+            ++current;
+        }
 
-        @property inout(Value) back() inout { assert(!empty); return cast(inout(Value))(pastLast - 1); }
-        void popBack() { assert(!empty); --pastLast; }
+        @property inout(Value) back() inout
+        {
+            assert(!empty, "Attempt to access `back` of empty `iota` range");
+            return cast(inout(Value))(pastLast - 1);
+        }
+        void popBack()
+        {
+            assert(!empty, "Attempt to `popBack` of empty `iota` range");
+            --pastLast;
+        }
 
         @property auto save() { return this; }
 
         inout(Value) opIndex(size_t n) inout
         {
-            assert(n < this.length);
+            assert(n < this.length,
+                "Attempt to read out-of-bounds index of `iota` range");
 
             // Just cast to Value here because doing so gives overflow behavior
             // consistent with calling popFront() n times.
@@ -6371,7 +6387,8 @@ if (isIntegral!(CommonType!(B, E)) || isPointer!(CommonType!(B, E)))
         inout(Result) opSlice() inout { return this; }
         inout(Result) opSlice(ulong lower, ulong upper) inout
         {
-            assert(upper >= lower && upper <= this.length);
+            assert(upper >= lower && upper <= this.length,
+                "Attempt to get out-of-bounds slice of `iota` range");
 
             return cast(inout Result) Result(cast(Value)(current + lower),
                                             cast(Value)(pastLast - (length - upper)));
@@ -6486,7 +6503,7 @@ do
 pure @safe unittest
 {
     import std.algorithm.comparison : equal;
-    import std.math : approxEqual;
+    import std.math.operations : isClose;
 
     auto r = iota(0, 10, 1);
     assert(equal(r, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
@@ -6500,7 +6517,7 @@ pure @safe unittest
     assert(r[2] == 6);
     assert(!(2 in r));
     auto rf = iota(0.0, 0.5, 0.1);
-    assert(approxEqual(rf, [0.0, 0.1, 0.2, 0.3, 0.4]));
+    assert(isClose(rf, [0.0, 0.1, 0.2, 0.3, 0.4]));
 }
 
 pure nothrow @nogc @safe unittest
@@ -6548,7 +6565,7 @@ pure @safe unittest
 {
     import std.algorithm.comparison : equal;
     import std.algorithm.searching : count;
-    import std.math : approxEqual, nextUp, nextDown;
+    import std.math.operations : isClose, nextUp, nextDown;
     import std.meta : AliasSeq;
 
     static assert(is(ElementType!(typeof(iota(0f))) == float));
@@ -6606,7 +6623,7 @@ pure @safe unittest
     assert(equal(rSlice, [3, 6]));
 
     auto rf = iota(0.0, 0.5, 0.1);
-    assert(approxEqual(rf, [0.0, 0.1, 0.2, 0.3, 0.4][]));
+    assert(isClose(rf, [0.0, 0.1, 0.2, 0.3, 0.4][]));
     assert(rf.length == 5);
 
     rf.popFront();
@@ -6614,35 +6631,35 @@ pure @safe unittest
 
     auto rfSlice = rf[1 .. 4];
     assert(rfSlice.length == 3);
-    assert(approxEqual(rfSlice, [0.2, 0.3, 0.4]));
+    assert(isClose(rfSlice, [0.2, 0.3, 0.4]));
 
     rfSlice.popFront();
-    assert(approxEqual(rfSlice[0], 0.3));
+    assert(isClose(rfSlice[0], 0.3));
 
     rf.popFront();
     assert(rf.length == 3);
 
     rfSlice = rf[1 .. 3];
     assert(rfSlice.length == 2);
-    assert(approxEqual(rfSlice, [0.3, 0.4]));
-    assert(approxEqual(rfSlice[0], 0.3));
+    assert(isClose(rfSlice, [0.3, 0.4]));
+    assert(isClose(rfSlice[0], 0.3));
 
     // With something just above 0.5
     rf = iota(0.0, nextUp(0.5), 0.1);
-    assert(approxEqual(rf, [0.0, 0.1, 0.2, 0.3, 0.4, 0.5][]));
+    assert(isClose(rf, [0.0, 0.1, 0.2, 0.3, 0.4, 0.5][]));
     rf.popBack();
     assert(rf[rf.length - 1] == rf.back);
-    assert(approxEqual(rf.back, 0.4));
+    assert(isClose(rf.back, 0.4));
     assert(rf.length == 5);
 
     // going down
     rf = iota(0.0, -0.5, -0.1);
-    assert(approxEqual(rf, [0.0, -0.1, -0.2, -0.3, -0.4][]));
+    assert(isClose(rf, [0.0, -0.1, -0.2, -0.3, -0.4][]));
     rfSlice = rf[2 .. 5];
-    assert(approxEqual(rfSlice, [-0.2, -0.3, -0.4]));
+    assert(isClose(rfSlice, [-0.2, -0.3, -0.4]));
 
     rf = iota(0.0, nextDown(-0.5), -0.1);
-    assert(approxEqual(rf, [0.0, -0.1, -0.2, -0.3, -0.4, -0.5][]));
+    assert(isClose(rf, [0.0, -0.1, -0.2, -0.3, -0.4, -0.5][]));
 
     // iota of longs
     auto rl = iota(5_000_000L);
@@ -7573,12 +7590,6 @@ if (isForwardRange!RangeOfRanges &&
         return true;
     }
 
-    deprecated("This function is incorrect and will be removed November 2018. See the docs for more details.")
-    @property Transposed save()
-    {
-        return Transposed(_input.save);
-    }
-
     auto opSlice() { return this; }
 
 private:
@@ -7647,10 +7658,6 @@ private:
 Given a range of ranges, returns a range of ranges where the $(I i)'th subrange
 contains the $(I i)'th elements of the original subranges.
 
-$(RED `Transposed` currently defines `save`, but does not work as a forward range.
-Consuming a copy made with `save` will consume all copies, even the original sub-ranges
-fed into `Transposed`.)
-
 Params:
     opt = Controls the assumptions the function makes about the lengths of the ranges (i.e. jagged or not)
     rr = Range of ranges
@@ -7701,7 +7708,7 @@ if (isForwardRange!RangeOfRanges &&
 @safe unittest
 {
     import std.algorithm.comparison : equal;
-    ulong[1] t0 = [ 123 ];
+    ulong[] t0 = [ 123 ];
 
     assert(!hasAssignableElements!(typeof(t0[].chunks(1))));
     assert(!is(typeof(transposed(t0[].chunks(1)))));
@@ -10204,13 +10211,18 @@ in
             auto result = adds(start, range.length, overflow);
         else static if (isSigned!Enumerator)
         {
-            Largest!(Enumerator, Signed!LengthType) signedLength;
-            try signedLength = to!(typeof(signedLength))(range.length);
-            catch (ConvException)
-                overflow = true;
-            catch (Exception)
-                assert(false);
-
+            alias signed_t = Largest!(Enumerator, Signed!LengthType);
+            signed_t signedLength;
+            //This is to trick the compiler because if length is enum
+            //the compiler complains about unreachable code.
+            auto getLength()
+            {
+                return range.length;
+            }
+            //Can length fit in the signed type
+            assert(getLength() < signed_t.max,
+                "a signed length type is required but the range's length() is too great");
+            signedLength = range.length;
             auto result = adds(start, signedLength, overflow);
         }
         else
@@ -10472,7 +10484,24 @@ pure @safe unittest
         }
     }}
 }
-
+@nogc @safe unittest
+{
+   const val = iota(1, 100).enumerate(1);
+}
+@nogc @safe unittest
+{
+    import core.exception : AssertError;
+    import std.exception : assertThrown;
+    struct RangePayload {
+        enum length = size_t.max;
+        void popFront() {}
+        int front() { return 0; }
+        bool empty() { return true; }
+    }
+    RangePayload thePayload;
+    //Assertion won't happen when contracts are disabled for -release.
+    debug assertThrown!AssertError(enumerate(thePayload, -10));
+}
 // https://issues.dlang.org/show_bug.cgi?id=10939
 version (none)
 {
@@ -10815,12 +10844,28 @@ if (isInputRange!Range && !isInstanceOf!(SortedRange, Range))
     mixin ImplementLength!_input;
 
 /**
-   Releases the controlled range and returns it.
+    Releases the controlled range and returns it.
+
+    This does the opposite of $(LREF assumeSorted): instead of turning a range
+    into a `SortedRange`, it extracts the original range back out of the `SortedRange`
+    using $(REF, move, std,algorithm,mutation).
 */
-    auto release()
+    auto release() return scope
     {
         import std.algorithm.mutation : move;
         return move(_input);
+    }
+
+    ///
+    static if (is(Range : int[]))
+    @safe unittest
+    {
+        import std.algorithm.sorting : sort;
+        int[3] data = [ 1, 2, 3 ];
+        auto a = assumeSorted(data[]);
+        assert(a == sort!"a < b"(data[]));
+        int[] p = a.release();
+        assert(p == [ 1, 2, 3 ]);
     }
 
     // Assuming a predicate "test" that returns 0 for a left portion
@@ -11183,6 +11228,30 @@ that break its sorted-ness, `SortedRange` will work erratically.
     assert(r.contains(42));
     swap(a[3], a[5]);         // illegal to break sortedness of original range
     assert(!r.contains(42));  // passes although it shouldn't
+}
+
+/**
+`SortedRange` can be searched with predicates that do not take
+two elements of the underlying range as arguments.
+
+This is useful, if a range of structs is sorted by a member and you
+want to search in that range by only providing a value for that member.
+
+*/
+@safe unittest
+{
+    import std.algorithm.comparison : equal;
+    static struct S { int i; }
+    static bool byI(A, B)(A a, B b)
+    {
+        static if (is(A == S))
+            return a.i < b;
+        else
+            return a < b.i;
+    }
+    auto r = assumeSorted!byI([S(1), S(2), S(3)]);
+    auto lessThanTwo = r.lowerBound(2);
+    assert(equal(lessThanTwo, [S(1)]));
 }
 
 @safe unittest
@@ -11614,7 +11683,7 @@ public:
 
         private static string _genSave() @safe pure nothrow
         {
-            return `import std.conv : emplace;` ~
+            return `import core.lifetime : emplace;` ~
                    `alias S = typeof((*_range).save);` ~
                    `static assert(isForwardRange!S, S.stringof ~ " is not a forward range.");` ~
                    `auto mem = new void[S.sizeof];` ~
@@ -11666,7 +11735,7 @@ public:
     version (StdDdoc)
     {
         /++
-            Only defined if `isRandomAccesRange!R` is `true`.
+            Only defined if `isRandomAccessRange!R` is `true`.
           +/
         auto ref opIndex(IndexType)(IndexType index) {assert(0);}
 
@@ -11778,7 +11847,7 @@ public:
 
         private static string _genOpSlice() @safe pure nothrow
         {
-            return `import std.conv : emplace;` ~
+            return `import core.lifetime : emplace;` ~
                    `alias S = typeof((*_range)[begin .. end]);` ~
                    `static assert(hasSlicing!S, S.stringof ~ " is not sliceable.");` ~
                    `auto mem = new void[S.sizeof];` ~
@@ -12107,7 +12176,7 @@ private:
         @property int front() @safe const pure nothrow { return 0; }
         enum bool empty = false;
         void popFront() @safe pure nothrow { }
-        @property auto save() @safe pure nothrow { return this; }
+        @property auto save() @safe pure nothrow return scope { return this; }
     }
 
     S s;
@@ -12122,7 +12191,7 @@ private:
         @property int front() @safe const pure nothrow { return 0; }
         @property bool empty() @safe const pure nothrow { return false; }
         void popFront() @safe pure nothrow { }
-        @property auto save() @safe pure nothrow { return this; }
+        @property auto save() @safe pure nothrow return scope { return this; }
     }
     static assert(isForwardRange!C);
 

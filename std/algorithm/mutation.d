@@ -374,14 +374,22 @@ if (isInputRange!SourceRange && isOutputRange!(TargetRange, ElementType!SourceRa
         assert(tlen >= slen,
                 "Cannot copy a source range into a smaller target range.");
 
-        immutable overlaps = __ctfe || () @trusted {
+        immutable overlaps = () @trusted {
             return source.ptr < target.ptr + tlen &&
                 target.ptr < source.ptr + slen; }();
 
         if (overlaps)
         {
-            foreach (idx; 0 .. slen)
-                target[idx] = source[idx];
+            if (source.ptr < target.ptr)
+            {
+                foreach_reverse (idx; 0 .. slen)
+                    target[idx] = source[idx];
+            }
+            else
+            {
+                foreach (idx; 0 .. slen)
+                    target[idx] = source[idx];
+            }
             return target[slen .. tlen];
         }
         else
@@ -505,6 +513,13 @@ $(LINK2 http://en.cppreference.com/w/cpp/algorithm/copy_backward, STL's `copy_ba
         int[] a = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         copy(a[5 .. 10], a[4 .. 9]);
         assert(a[4 .. 9] == [6, 7, 8, 9, 10]);
+    }
+
+    // https://issues.dlang.org/show_bug.cgi?id=21724
+    {
+        int[] a = [1, 2, 3, 4];
+        copy(a[0 .. 2], a[1 .. 3]);
+        assert(a == [1, 1, 2, 4]);
     }
 
     // https://issues.dlang.org/show_bug.cgi?id=7898
@@ -1059,7 +1074,7 @@ Params:
 */
 void move(T)(ref T source, ref T target)
 {
-    moveImpl(source, target);
+    moveImpl(target, source);
 }
 
 /// For non-struct types, `move` just performs `target = source`:
@@ -1229,7 +1244,7 @@ pure nothrow @safe @nogc unittest
     static assert(is(typeof({ S s; move(s, s); }) == T));
 }
 
-private void moveImpl(T)(ref T source, ref T target)
+private void moveImpl(T)(ref scope T target, ref return scope T source)
 {
     import std.traits : hasElaborateDestructor;
 
@@ -1242,10 +1257,10 @@ private void moveImpl(T)(ref T source, ref T target)
         static if (hasElaborateDestructor!T) target.__xdtor();
     }
     // move and emplace source into target
-    moveEmplaceImpl(source, target);
+    moveEmplaceImpl(target, source);
 }
 
-private T moveImpl(T)(ref T source)
+private T moveImpl(T)(ref return scope T source)
 {
     // Properly infer safety from moveEmplaceImpl as the implementation below
     // might void-initialize pointers in result and hence needs to be @trusted
@@ -1254,10 +1269,10 @@ private T moveImpl(T)(ref T source)
     return trustedMoveImpl(source);
 }
 
-private T trustedMoveImpl(T)(ref T source) @trusted
+private T trustedMoveImpl(T)(ref return scope T source) @trusted
 {
     T result = void;
-    moveEmplaceImpl(source, result);
+    moveEmplaceImpl(result, source);
     return result;
 }
 
@@ -1400,7 +1415,7 @@ private T trustedMoveImpl(T)(ref T source) @trusted
     move(x, x);
 }
 
-private void moveEmplaceImpl(T)(ref T source, ref T target)
+private void moveEmplaceImpl(T)(ref scope T target, ref return scope T source)
 {
     import core.stdc.string : memcpy, memset;
     import std.traits : hasAliasing, hasElaborateAssign,
@@ -1471,7 +1486,7 @@ private void moveEmplaceImpl(T)(ref T source, ref T target)
  */
 void moveEmplace(T)(ref T source, ref T target) pure @system
 {
-    moveEmplaceImpl(source, target);
+    moveEmplaceImpl(target, source);
 }
 
 ///
@@ -2373,7 +2388,7 @@ Range remove(alias pred, SwapStrategy s = SwapStrategy.stable, Range)(Range rang
 @nogc @safe unittest
 {
     // @nogc test
-    int[10] arr = [0,1,2,3,4,5,6,7,8,9];
+    static int[] arr = [0,1,2,3,4,5,6,7,8,9];
     alias pred = e => e < 5;
 
     auto r = arr[].remove!(SwapStrategy.unstable)(0);
@@ -3262,7 +3277,7 @@ if (isInputRange!Range && hasLvalueElements!Range && is(typeof(range.front = val
     alias T = ElementType!Range;
     static if (hasElaborateAssign!T)
     {
-        import std.conv : emplaceRef;
+        import core.internal.lifetime : emplaceRef;
 
         // Must construct stuff by the book
         for (; !range.empty; range.popFront())

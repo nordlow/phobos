@@ -54,14 +54,10 @@ ifneq ($(BUILD),release)
     endif
 endif
 
-# default to PIC on x86_64, use PIC=1/0 to en-/disable PIC.
+# default to PIC, use PIC=1/0 to en-/disable PIC.
 # Note that shared libraries and C files are always compiled with PIC.
 ifeq ($(PIC),)
-    ifeq ($(MODEL),64) # x86_64
-        PIC:=1
-    else
-        PIC:=0
-    endif
+    PIC:=1
 endif
 ifeq ($(PIC),1)
     override PIC:=-fPIC
@@ -78,7 +74,7 @@ ROOT_OF_THEM_ALL = generated
 ROOT = $(ROOT_OF_THEM_ALL)/$(OS)/$(BUILD)/$(MODEL)
 DUB=dub
 TOOLS_DIR=../tools
-DSCANNER_HASH=9364d6f15f4a610fda49a693dbc18608bfc701bb
+DSCANNER_HASH=308bdfd1c18c435c94b712f3c941d787884ef1f3
 DSCANNER_DIR=$(ROOT_OF_THEM_ALL)/dscanner-$(DSCANNER_HASH)
 
 # Set DRUNTIME name and full path
@@ -139,7 +135,7 @@ endif
 
 # Set DFLAGS
 DFLAGS=
-override DFLAGS+=-conf= -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS) -w -de -preview=dip1000 -preview=dtorfields $(MODEL_FLAG) $(PIC) -transition=complex
+override DFLAGS+=-conf= -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS) -w -de -preview=dip1000 -preview=dtorfields $(MODEL_FLAG) $(PIC)
 ifeq ($(BUILD),debug)
 override DFLAGS += -g -debug
 else
@@ -207,16 +203,16 @@ P2MODULES=$(foreach P,$1,$(addprefix $P/,$(PACKAGE_$(subst /,_,$P))))
 STD_PACKAGES = std $(addprefix std/,\
   algorithm container datetime digest experimental/allocator \
   experimental/allocator/building_blocks experimental/logger \
-  net uni \
+  format math net uni \
   experimental range regex windows)
 
 # Modules broken down per package
 
 PACKAGE_std = array ascii base64 bigint bitmanip compiler complex concurrency \
-  conv csv demangle encoding exception file format \
-  functional getopt json math mathspecial meta mmfile numeric \
+  conv csv demangle encoding exception file \
+  functional getopt json mathspecial meta mmfile numeric \
   outbuffer package parallelism path process random signals socket stdint \
-  stdio string system traits typecons \
+  stdio string sumtype system traits typecons \
   uri utf uuid variant xml zip zlib
 PACKAGE_std_experimental = checkedint typecons
 PACKAGE_std_algorithm = comparison iteration mutation package searching setops \
@@ -233,6 +229,9 @@ PACKAGE_std_experimental_allocator_building_blocks = \
   bucketizer fallback_allocator free_list free_tree bitmapped_block \
   kernighan_ritchie null_allocator package quantizer \
   region scoped_allocator segregator stats_collector
+PACKAGE_std_format = package read spec write $(addprefix internal/, floats read write)
+PACKAGE_std_math = algebraic constants exponential hardware operations \
+  package remainder rounding traits trigonometry
 PACKAGE_std_net = curl isemail
 PACKAGE_std_range = interfaces package primitives
 PACKAGE_std_regex = package $(addprefix internal/,generator ir parser \
@@ -668,6 +667,27 @@ betterc: betterc-phobos-tests
 	$(TESTS_EXTRACTOR) --betterC --attributes betterC \
 		--inputdir  $< --outputdir $(BETTERCTESTS_DIR)
 	$(DMD) $(DFLAGS) $(NODEFAULTLIB) -betterC -unittest -run $(BETTERCTESTS_DIR)/$(subst /,_,$<)
+
+
+################################################################################
+# Full-module BetterC tests
+# -------------------------
+#
+# Test full modules with -betterC. Edit BETTERC_MODULES and
+# test/betterc_module_tests.d to add new modules to the list.
+#
+#   make -f posix.mak betterc-module-tests
+################################################################################
+
+BETTERC_MODULES=std/sumtype
+
+betterc: betterc-module-tests
+
+betterc-module-tests: $(ROOT)/betterctests/betterc_module_tests
+	$(ROOT)/betterctests/betterc_module_tests
+
+$(ROOT)/betterctests/betterc_module_tests: test/betterc_module_tests.d $(addsuffix .d,$(BETTERC_MODULES))
+	$(DMD) $(DFLAGS) $(NODEFAULTLIB) -of=$(ROOT)/betterctests/betterc_module_tests -betterC -unittest test/betterc_module_tests.d $(addsuffix .d,$(BETTERC_MODULES))
 
 ################################################################################
 

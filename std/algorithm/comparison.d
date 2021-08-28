@@ -713,20 +713,10 @@ if (isInputRange!R1 && isInputRange!R2)
     {
         import std.utf : decode;
 
-        // For speed only
-        static int threeWayCompareLength(size_t a, size_t b)
-        {
-            static if (size_t.sizeof == int.sizeof)
-                return a - b;
-            else
-                // Faster than return b < a ? 1 : a < b ? -1 : 0;
-                return (a > b) - (a < b);
-        }
-
         for (size_t i1, i2;;)
         {
-            if (i1 == r1.length) return threeWayCompareLength(i2, r2.length);
-            if (i2 == r2.length) return threeWayCompareLength(r1.length, i1);
+            if (i1 == r1.length) return -int(i2 < r2.length);
+            if (i2 == r2.length) return 1;
             immutable c1 = decode(r1, i1),
                 c2 = decode(r2, i2);
             if (c1 != c2)
@@ -985,7 +975,7 @@ template equal(alias pred = "a == b")
 @safe @nogc unittest
 {
     import std.algorithm.comparison : equal;
-    import std.math : approxEqual;
+    import std.math.operations : isClose;
 
     int[4] a = [ 1, 2, 4, 3 ];
     assert(!equal(a[], a[1..$]));
@@ -998,8 +988,8 @@ template equal(alias pred = "a == b")
     assert(equal(a[], b[]));
 
     // predicated: ensure that two vectors are approximately equal
-    double[4] c = [ 1.005, 2, 4, 3];
-    assert(equal!approxEqual(b[], c[]));
+    double[4] c = [ 1.0000000005, 2, 4, 3];
+    assert(equal!isClose(b[], c[]));
 }
 
 /++
@@ -1023,7 +1013,7 @@ range of range (of range...) comparisons.
     import std.algorithm.iteration : map;
     import std.internal.test.dummyrange : ReferenceForwardRange,
         ReferenceInputRange, ReferenceInfiniteForwardRange;
-    import std.math : approxEqual;
+    import std.math.operations : isClose;
 
     // various strings
     assert(equal("æøå", "æøå")); //UTF8 vs UTF8
@@ -1057,11 +1047,11 @@ range of range (of range...) comparisons.
     int[] a = [ 1, 2, 4, 3 ];
     assert(equal([2, 4, 8, 6], map!"a*2"(a)));
     double[] b = [ 1.0, 2, 4, 3];
-    double[] c = [ 1.005, 2, 4, 3];
-    assert(equal!approxEqual(map!"a*2"(b), map!"a*2"(c)));
+    double[] c = [ 1.0000000005, 2, 4, 3];
+    assert(equal!isClose(map!"a*2"(b), map!"a*2"(c)));
     assert(!equal([2, 4, 1, 3], map!"a*2"(a)));
     assert(!equal([2, 4, 1], map!"a*2"(a)));
-    assert(!equal!approxEqual(map!"a*3"(b), map!"a*2"(c)));
+    assert(!equal!isClose(map!"a*3"(b), map!"a*2"(c)));
 
     //Tests with some fancy reference ranges.
     ReferenceInputRange!int cir = new ReferenceInputRange!int([1, 2, 4, 3]);
@@ -1526,7 +1516,7 @@ Iterates the passed arguments and returns the maximum value.
 
 Params:
     args = The values to select the maximum from. At least two arguments must
-    be passed, and they must be comparable with `>`.
+    be passed, and they must be comparable with `<`.
 
 Returns:
     The maximum of the passed-in values. The type of the returned value is
@@ -1572,6 +1562,16 @@ if (T.length >= 2 && !is(CommonType!T == void))
     import std.functional : lessThan;
     immutable chooseB = lessThan!(T0, T1)(a, b);
     return cast(Result) (chooseB ? b : a);
+}
+
+/// ditto
+T max(T, U)(T a, U b)
+if (is(T == U) && is(typeof(a < b)))
+{
+   /* Handle the common case without all the template expansions
+    * of the general case
+    */
+    return a < b ? b : a;
 }
 
 ///
@@ -1673,6 +1673,17 @@ if (T.length >= 2 && !is(CommonType!T == void))
     immutable chooseB = lessThan!(T1, T0)(b, a);
     return cast(Result) (chooseB ? b : a);
 }
+
+/// ditto
+T min(T, U)(T a, U b)
+if (is(T == U) && is(typeof(a < b)))
+{
+   /* Handle the common case without all the template expansions
+    * of the general case
+    */
+    return b < a ? b : a;
+}
+
 
 ///
 @safe @nogc @betterC unittest

@@ -86,7 +86,7 @@ else version (Posix)
 
     import core.stdc.errno;
 
-    enum socket_t : int32_t { init = -1 }
+    enum socket_t : int32_t { _init = -1 }
     private const int _SOCKET_ERROR = -1;
 
     private enum : int
@@ -1394,12 +1394,12 @@ protected:
 
 
 public:
-    override @property sockaddr* name()
+    override @property sockaddr* name() return
     {
         return &sa;
     }
 
-    override @property const(sockaddr)* name() const
+    override @property const(sockaddr)* name() const return
     {
         return &sa;
     }
@@ -1475,12 +1475,12 @@ protected:
 
 
 public:
-    override @property sockaddr* name()
+    override @property sockaddr* name() return
     {
         return cast(sockaddr*)&sin;
     }
 
-    override @property const(sockaddr)* name() const
+    override @property const(sockaddr)* name() const return
     {
         return cast(const(sockaddr)*)&sin;
     }
@@ -1729,12 +1729,12 @@ protected:
 
 
 public:
-    override @property sockaddr* name()
+    override @property sockaddr* name() return
     {
         return cast(sockaddr*)&sin6;
     }
 
-    override @property const(sockaddr)* name() const
+    override @property const(sockaddr)* name() const return
     {
         return cast(const(sockaddr)*)&sin6;
     }
@@ -1969,12 +1969,12 @@ static if (is(sockaddr_un))
         }
 
     public:
-        override @property sockaddr* name()
+        override @property sockaddr* name() return
         {
             return cast(sockaddr*)&sun;
         }
 
-        override @property const(sockaddr)* name() const
+        override @property const(sockaddr)* name() const return
         {
             return cast(const(sockaddr)*)&sun;
         }
