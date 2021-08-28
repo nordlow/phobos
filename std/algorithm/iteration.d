@@ -2145,20 +2145,20 @@ if (isInputRange!Range)
     alias e = lvalueOf!(ElementType!Range);
 
     static if (is(typeof(binaryFun!pred(e, e)) : bool))
-        enum bool isUnary = false;
+        enum opType = GroupingOpType.binaryAny;
     else static if (is(typeof(unaryFun!pred(e) == unaryFun!pred(e)) : bool))
-        enum bool isUnary = true;
+        enum opType = GroupingOpType.unary;
     else
         static assert(0, "chunkBy expects either a binary predicate or "~
                         "a unary predicate on range elements of type: "~
                         ElementType!Range.stringof);
 
-    static if (isUnary)
+    static if (opType == GroupingOpType.unary)
         alias eq = binaryFun!((a, b) => unaryFun!pred(a) == unaryFun!pred(b));
     else
         alias eq = binaryFun!pred;
 
-    return ChunkByImpl!(pred, eq, isUnary, Range)(r);
+    return ChunkByImpl!(pred, eq, opType, Range)(r);
 }
 
 /// Showing usage with binary predicate:
