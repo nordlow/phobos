@@ -919,100 +919,299 @@ nothrow pure @safe unittest
     auto t = task!cmp("foo", "bar");
 }
 
+private static template allSameTypeIterative(V...)
+{
+    static if (V.length >= 2)
+    {
+        static foreach (Vi; V[1 .. $])
+        {
+            static if (!is(typeof(allSameTypeIterative) == bool) && // not yet defined
+                       !is(V[0] == Vi)) // 10% faster than `!isSame(V[0], Vi)`
+            {
+                enum allSameTypeIterative = false;
+            }
+        }
+    }
+    static if (!is(typeof(allSameTypeIterative) == bool)) // if not yet defined
+    {
+        enum allSameTypeIterative = true;
+    }
+}
+
+/* Check if `pred` is a standard equality string or lambda predicate.
+ *
+ * See also: https://github.com/dlang/phobos/pull/3373#pullrequestreview-102956739
+ */
+private static template isEqualityPredicate(alias pred)
+{
+    static if (is(typeof(pred) == string))
+    {
+        // TODO remove when string lambdas become deprecated
+        enum isEqualityPredicate = (pred == "a == b");
+    }
+    else
+    {
+        enum isEqualityPredicate = __traits(isSame, pred, (a, b) => a == b);
+    }
+}
+
+/** Returns: `xs` forwarded through calls to `fun` and packed into a `std.typecons.Tuple`.
+ *
+ * See also: https://forum.dlang.org/post/zjxmreegqkxgdzvihvyk@forum.dlang.org
+ */
+private static auto forwardMap(alias fun, Ts...)(Ts xs) @trusted
+if (is(typeof(unaryFun!(fun))))
+{
+    import std.meta : staticMap;
+    alias MappedTypeOf(T) = typeof(fun(T.init));
+    alias NewTypes = staticMap!(MappedTypeOf, Ts);
+
+    import std.typecons : Tuple;
+    Tuple!NewTypes ys = void;
+
+    alias fun_ = unaryFun!(fun);
+
+    import std.conv : emplaceRef;
+    static foreach (immutable i, x; xs)
+    {
+        emplaceRef(ys[i], fun_(x));
+    }
+
+    return ys;
+}
+
 // equal
 /**
-Compares two ranges for equality, as defined by predicate `pred`
-(which is `==` by default).
+Compares two or more ranges `rs` for equality, as defined by predicate `pred`
+(which is `a == b` by default).
 */
 template equal(alias pred = "a == b")
 {
-    /++
-    Compares two ranges for equality. The ranges may have
-    different element types, as long as `pred(r1.front, r2.front)`
-    evaluates to `bool`.
-    Performs $(BIGOH min(r1.length, r2.length)) evaluations of `pred`.
+    import std.meta : anySatisfy, allSatisfy;
 
-    At least one of the ranges must be finite. If one range involved is infinite, the result is
-    (statically known to be) `false`.
+    /** Check if `T` is always empty (`empty` is an `enum` always being `true`)
+     */
+    enum isAlwaysEmpty(T) = (__traits(compiles, { static assert(T.empty); }));
 
-    If the two ranges are different kinds of UTF code unit (`char`, `wchar`, or
-    `dchar`), then the arrays are compared using UTF decoding to avoid
-    accidentally integer-promoting units.
+    enum areAllEquableRanges(Rs...) = is(typeof(binaryFun!pred(ElementType!(Rs[0]).init, // TODO check all `Rs`
+                                                               ElementType!(Rs[1]).init)));
 
-    Params:
-        r1 = The first range to be compared.
-        r2 = The second range to be compared.
+    static alias ElementEncodingTypeUnqual(R) = Unqual!(ElementEncodingType!R);
 
-    Returns:
-        `true` if and only if the two ranges compare _equal element
-        for element, according to binary predicate `pred`.
-    +/
-    bool equal(Range1, Range2)(Range1 r1, Range2 r2)
-    if (isInputRange!Range1 && isInputRange!Range2 &&
-        !(isInfinite!Range1 && isInfinite!Range2) &&
-        is(typeof(binaryFun!pred(r1.front, r2.front))))
+    enum hasIndexingAndLength(T) = (is(typeof(T.init[0])) &&
+                                    is(typeof(T.length)));
+
+    /// TODO better name, anyone?
+    static auto maybeByCodeUnit(T)(T x)
     {
-        // Use code points when comparing two ranges of UTF code units that aren't
-        // the same type. This is for backwards compatibility with autodecode
-        // strings.
-        enum useCodePoint =
-            isSomeChar!(ElementEncodingType!Range1) && isSomeChar!(ElementEncodingType!Range2) &&
-            ElementEncodingType!Range1.sizeof != ElementEncodingType!Range2.sizeof;
-
-        static if (useCodePoint)
+        static if (isAutodecodableString!T)
         {
-            import std.utf : byDchar;
-            return equal(r1.byDchar, r2.byDchar);
+            import std.utf : byCodeUnit;
+            return x.byCodeUnit;
         }
         else
         {
-            static if (isInfinite!Range1 || isInfinite!Range2)
-            {
-                // No finite range can be ever equal to an infinite range.
-                return false;
-            }
-            // Detect default pred and compatible dynamic arrays.
-            else static if (is(typeof(pred) == string) && pred == "a == b" &&
-                isArray!Range1 && isArray!Range2 && is(typeof(r1 == r2)))
-            {
-                return r1 == r2;
-            }
-            // If one of the arguments is a string and the other isn't, then auto-decoding
-            // can be avoided if they have the same ElementEncodingType.
-            else static if (is(typeof(pred) == string) && pred == "a == b" &&
-                isAutodecodableString!Range1 != isAutodecodableString!Range2 &&
-                is(immutable ElementEncodingType!Range1 == immutable ElementEncodingType!Range2))
-            {
-                import std.utf : byCodeUnit;
+            return x;
+        }
+    }
 
-                static if (isAutodecodableString!Range1)
-                    return equal(r1.byCodeUnit, r2);
-                else
-                    return equal(r2.byCodeUnit, r1);
-            }
-            // Try a fast implementation when the ranges have comparable lengths.
-            else static if (hasLength!Range1 && hasLength!Range2 && is(typeof(r1.length == r2.length)))
-            {
-                immutable len1 = r1.length;
-                immutable len2 = r2.length;
-                if (len1 != len2) return false; //Short circuit return
+    /++
+     This function compares two ore more ranges `rs` for equality. The
+    ranges may have different element types, as long as `pred(a, b)`
+    evaluates to `bool` for every combination elements of `a` and `b` at the same position in the ranges
+    `rs`.  Performs $(BIGOH min(r1.length, rs.length)) TODO BIG differently
+    evaluations of `pred`.
 
-                // Lengths are the same, so we need to do an actual comparison.
-                // Good news is we can squeeze out a bit of performance by not checking if r2 is empty.
-                for (; !r1.empty; r1.popFront(), r2.popFront())
+    Params:
+        rs = The ranges to be compared.
+
+    Returns:
+        `true` if and only if all the ranges compare _equal element
+        for element, according to binary predicate `pred`.
+    +/
+    bool equal(Rs...)(Rs rs)
+    if (rs.length >= 2 &&
+        areAllEquableRanges!(Rs) &&
+        allSatisfy!(isInputRange, Rs) &&
+        !allSatisfy!(isInfinite, Rs))
+    {
+        // if comparing two arrays
+        static if (rs.length == 2 && // builtin array comparison can only support binary case
+                   isArray!(Rs[0]) &&
+                   isArray!(Rs[1]) &&
+                   isEqualityPredicate!pred &&
+                   is(typeof(Rs[0].init == Rs[1].init)))
+        {
+            return rs[0] == rs[1]; // use fast builtin array comparison
+        }
+        // avoid calls to `pred` when some range is always `empty` (`enum`)
+        else static if (anySatisfy!(isAlwaysEmpty, Rs))
+        {
+            static foreach (r; rs)
+            {
+                if (!r.empty)
                 {
-                    if (!binaryFun!(pred)(r1.front, r2.front)) return false;
+                    return false;
                 }
-                return true;
+            }
+            return true;
+        }
+        // if one of the arguments is a `string` or `wstring` and the other
+        // isn't, then auto-decoding can be avoided if they have the same
+        // `ElementEncodingType`
+        else static if (isEqualityPredicate!pred &&
+                        anySatisfy!(isAutodecodableString, Rs) && // some `Rs` is a `string` or `wstring`
+                        allSameTypeIterative!(staticMap!(ElementEncodingTypeUnqual, Rs))) // and all can be decoded as either `char` or `wchar`
+        {
+            return equal(forwardMap!maybeByCodeUnit(rs).tupleof); // compare by char or wchar
+        }
+        else
+        {
+            import std.meta : staticMap, staticIndexOf;
+
+            // get lengths
+            alias hasLengthBits = staticMap!(hasLength, Rs);
+            enum indexOfFirstLength = staticIndexOf!(true, hasLengthBits);
+
+            // if `true`, at least one of `Rs` has a `length` property
+            enum someHasLength = indexOfFirstLength != -1;
+
+            static if (someHasLength && // if one range has a (finite) length and
+                       anySatisfy!(isInfinite, Rs)) // another is infinite
+            {
+                return false;   // they can't be equal
             }
             else
             {
-                //Generic case, we have to walk both ranges making sure neither is empty
-                for (; !r1.empty; r1.popFront(), r2.popFront())
+                enum someHasIndexingAndLength = anySatisfy!(hasIndexingAndLength, Rs);
+
+                static if (someHasLength)
                 {
-                    if (r2.empty || !binaryFun!(pred)(r1.front, r2.front)) return false;
+                    /* if any `rs` `hasLength` then `primaryRangeIndex` will index the
+                     * first of them */
+                    enum primaryRangeIndex = indexOfFirstLength;
+                    const length = rs[indexOfFirstLength].length;
                 }
-                return r2.empty;
+                else
+                {
+                    enum primaryRangeIndex = 0; // just pick first
+                }
+                alias primaryRange = rs[primaryRangeIndex]; // shorthand
+
+                // check that all the range lengths available are equal
+                static if (someHasLength)
+                {
+                    static foreach (idx, r; rs)
+                    {
+                        static if (idx != indexOfFirstLength)
+                        {
+                            static if (hasLength!(typeof(r)))
+                            {
+                                if (length != r.length) return false;
+                            }
+                        }
+                    }
+                }
+
+                // check equal contents
+                static if (someHasIndexingAndLength) // if some `Rs` needs a element offset counter
+                {
+                    size_t ei = 0; // element offset counter
+                }
+                while (true) // for each element in primary range `r`
+                {
+                    static if (hasIndexingAndLength!(typeof(primaryRange)))
+                    {
+                        if (ei == primaryRange.length) break;
+                    }
+                    else
+                    {
+                        if (primaryRange.empty) break;
+                    }
+
+                    /* compare current element in primary range `primaryRange` with each
+                     * non-primary range `r` in `rs` */
+                    static foreach (idx, r; rs)
+                    {
+                        static if (idx != primaryRangeIndex) // avoid checking the primary range with itself
+                        {
+                            static if (!isInfinite!(typeof(r))) // `r` is finite
+                            {
+                                static if (hasLength!(typeof(primaryRange)) &&
+                                           hasLength!(typeof(r)))
+                                {
+                                    /* primaryRange and `r` have already been
+                                     * checked above to have equal lengths so
+                                     * safe to skip empty check for `r` */
+                                }
+                                else
+                                {
+                                    if (r.empty) return false; // check for premature emptying of `r`
+                                }
+                                if (!binaryFun!(pred)(primaryRange.front, r.front)) { return false; }
+                                static if (hasIndexingAndLength!(typeof(r)))
+                                {
+                                    static if (hasIndexingAndLength!(typeof(primaryRange)))
+                                    {
+                                        if (!binaryFun!(pred)(primaryRange[ei], r[ei])) return false;
+                                    }
+                                    else
+                                    {
+                                        if (!binaryFun!(pred)(primaryRange.front, r[ei])) return false;
+                                    }
+                                }
+                                else
+                                {
+                                    static if (hasIndexingAndLength!(typeof(primaryRange)))
+                                    {
+                                        if (!binaryFun!(pred)(primaryRange[ei], r.front)) return false;
+                                    }
+                                    else
+                                    {
+                                        if (!binaryFun!(pred)(primaryRange.front, r.front)) return false;
+                                    }
+                                    r.popFront();
+                                }
+                            }
+                            else    // `r` is infinite
+                            {
+                                if (!binaryFun!(pred)(primaryRange.front, r.front)) return false;
+                                r.popFront();
+                            }
+                        }
+                    }
+                    static if (!hasIndexingAndLength!(typeof(primaryRange)))
+                    {
+                        primaryRange.popFront();
+                    }
+                    static if (someHasIndexingAndLength)
+                    {
+                        ei += 1;
+                    }
+                }
+
+                // check that all other ranges are empty
+                static if (!isInfinite!(Rs[primaryRangeIndex])) // line only reached when previous `for`-loop terminated (`r.empty` not enum false)
+                {
+                    static foreach (idx, r; rs)
+                    {
+                        static if (idx != primaryRangeIndex)    // not primary
+                        {
+                            static if (!isInfinite!(typeof(r))) // finite range
+                            {
+                                static if (hasIndexingAndLength!(typeof(r)))
+                                {
+                                    if (ei != r.length) return false;
+                                }
+                                else
+                                {
+                                    if (!r.empty) return false;
+                                }
+                            }
+                        }
+                    }
+                    return true;
+                }
             }
         }
     }
