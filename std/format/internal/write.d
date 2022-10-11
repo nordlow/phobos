@@ -3011,46 +3011,90 @@ void enforceValidFormatSpec(T, Char)(scope const ref FormatSpec!Char f)
 /*
     `enum`s are formatted like their base value
  */
-void formatValueImpl(Writer, T, Char)(auto ref Writer w, const(T) val, scope const ref FormatSpec!Char f)
+void formatValueImpl(Writer, T, Char)(auto ref Writer w, T val, scope const ref FormatSpec!Char f)
 if (is(T == enum))
 {
     import std.array : appender;
     import std.range.primitives : put;
 
+    alias OT = OriginalType!T;
     if (f.spec == 's')
     {
-        foreach (i, e; EnumMembers!T)
+        static if (is(OT == struct) || is(OT == class) || is(OT == union))
         {
-            if (val == e)
+            import std.stdio;
+            // if (!__ctfe) debug writeln("val:", val);
+            pragma(msg, __FILE__, "(", __LINE__, ",1): Debug: AGGREGATE ",
+                   " T:", T,
+                   " OT:", OT,
+                   " EnumMembers!T:", EnumMembers!T);
+            foreach (i, e; EnumMembers!T)
             {
-                formatValueImpl(w, __traits(allMembers, T)[i], f);
-                return;
+                // pragma(msg, __FILE__, "(", __LINE__, ",1): Debug: i:", i, " e:", e);
+                if (val == e)
+                {
+                    // pragma(msg, __FILE__, "(", __LINE__, ",1): Debug: ", "OK:", __traits(allMembers, T)[i]);
+                    formatValueImpl(w, __traits(allMembers, T)[i], f);
+                    return;
+                }
             }
+
+            auto w2 = appender!string();
+
+            // val is not a member of T, output cast(T) rawValue instead.
+            put(w2, "cast(");
+            put(w2, T.stringof);
+            put(w2, ")");
+            static assert(!is(OT == T), "OriginalType!" ~ T.stringof ~
+                          "must not be equal to " ~ T.stringof);
+
+            FormatSpec!Char f2 = f;
+            f2.width = 0;
+            formatValueImpl(w2, cast(OT) val, f2);
+            writeAligned(w, w2.data, f);
+            return;
         }
-
-        auto w2 = appender!string();
-
-        // val is not a member of T, output cast(T) rawValue instead.
-        put(w2, "cast(");
-        put(w2, T.stringof);
-        put(w2, ")");
-        static assert(!is(OriginalType!T == T), "OriginalType!" ~ T.stringof ~
-            "must not be equal to " ~ T.stringof);
-
-        FormatSpec!Char f2 = f;
-        f2.width = 0;
-        formatValueImpl(w2, cast(OriginalType!T) val, f2);
-        writeAligned(w, w2.data, f);
-        return;
+        else
+        {
+            pragma(msg, __FILE__, "(", __LINE__, ",1): Debug: NON-AGGREGATE ",
+                   " T:", T,
+                   " OT:", OT,
+                   " EnumMembers!T:", EnumMembers!T);
+            formatValueImpl(w, cast(OT) val, f);
+        }
     }
-    formatValueImpl(w, cast(OriginalType!T) val, f);
+    formatValueImpl(w, cast(OT) val, f);
+}
+
+// https://issues.dlang.org/show_bug.cgi?id=23400
+@safe pure unittest
+{
+    pragma(msg, __FILE__, "(", __LINE__, ",1): Debug: ", "BEG");
+    import std.range : nullSink;
+    import std.format.spec : singleSpec;
+
+    static struct S
+    {
+        bool opEquals(S rhs) { return false; }
+    }
+
+    enum E { a = S() }
+
+    E e;
+    auto writer = nullSink;
+    const spec = singleSpec("%s");
+    writer.formatValueImpl(e, spec);
+
+    pragma(msg, __FILE__, "(", __LINE__, ",1): Debug: ", "END");
 }
 
 @safe unittest
 {
+    pragma(msg, __FILE__, "(", __LINE__, ",1): Debug: ", "BEG");
     enum A { first, second, third }
     formatTest(A.second, "second");
     formatTest(cast(A) 72, "cast(A)72");
+    pragma(msg, __FILE__, "(", __LINE__, ",1): Debug: ", "END");
 }
 @safe unittest
 {
